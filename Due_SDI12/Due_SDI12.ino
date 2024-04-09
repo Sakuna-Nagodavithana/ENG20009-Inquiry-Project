@@ -1,3 +1,7 @@
+
+
+
+
 void setup() {
   //Arduino IDE Serial Monitor
   Serial.begin(9600);
@@ -24,5 +28,15 @@ void loop() {
     //Serial1.println(c);
   }
 
-  Serial1.println("HAA");
+  writeToSDI12("HHH");
+}
+
+void writeToSDI12(String data){
+  //DIRO Pin LOW to Send to SDI-12
+  digitalWrite(7, LOW); 
+  Serial1.println(data);
+  delay(100);
+
+  //HIGH to Receive from SDI-12
+  digitalWrite(7, HIGH); 
 }
