@@ -22,13 +22,10 @@ void setup() {
 
 void loop() {
   //Receive SDI-12 over UART and then print to Serial Monitor
-  if (Serial1.available()) {
-    char c = Serial1.read();
-    Serial.print( c );
-    //Serial1.println(c);
-  }
-
-  writeToSDI12("HHH");
+  while (Serial1.available() == 0) {}
+    String command = Serial1.readString();
+    //sdi12.runCommand(command);
+    Serial.println(command);
 }
 
 void writeToSDI12(String data){
