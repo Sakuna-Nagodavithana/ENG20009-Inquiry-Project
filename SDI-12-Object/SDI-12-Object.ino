@@ -125,20 +125,18 @@ void setup() {
 
 void loop() {
     
-    while (Serial1.available() == 0) {}
-    String command = Serial1.readString();
-    //sdi12.runCommand(command);
-    Serial.println(command);
-    Serial.print("lenths : ");Serial.println(command.length());
-    char commandChars[command.length()];
-    command.toCharArray(commandChars, command.length());
-    ms2.Target(commandChars);
-    Serial.print("Target length");Serial.println(sizeof(commandChars)/sizeof(commandChars[0]));
-    
+    if (Serial.available()) {
+    String input = Serial1.readStringUntil('\n');
+    char buf[input.length() + 1];
+    input.toCharArray(buf, input.length() + 1);
+    ms2.Target(buf);
+    Serial.println(input);
     if (ms2.Match(".+\?!") == REGEXP_MATCHED) {
-      Serial.println("Working");
-    }else{
-      Serial.println("Notworking");
+      Serial.println("working");
+    } else {
+      Serial.println("Invalid input");
     }
+    Serial.println("Enter a string:");
+  }
 
 }
