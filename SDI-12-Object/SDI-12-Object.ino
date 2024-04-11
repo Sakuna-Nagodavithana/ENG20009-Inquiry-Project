@@ -17,13 +17,27 @@ private:
     bool initialize = false;
 
 public:
-    void runCommand(String command) {
-        char commandChars[command.length() + 1];
-        command.toCharArray(commandChars, command.length() + 1);
-        ms.Target(commandChars);
+    void runCommand(char command[]) {
+        // char commandChars[command.length() + 1];
+        // command.toCharArray(commandChars, command.length() + 1);
+
+        // char buf[command.length()]; // +1 for the null terminator
+        // //memset(buf, 0, sizeof(buf)); // Initialize the buffer with zeroes
+        // //command.toCharArray(buf, command.length() + 1); // Ensure null termination
+        // Serial.println(command);
+        
+        // // Debugging: print each character in hex
+        // for (int i = 1; i < command.length(); i++) {
+        //   buf[i] = command[i];
+        //   Serial.println(buf[i]);
+        //   Serial.print("0x");
+        //   Serial.println(buf[i], HEX);
+        // }
+        
+        ms.Target(command);
 
         // Address Query
-        if (ms.Match("^\\?!") == REGEXP_MATCHED) {
+        if (ms.Match(".*a!") == REGEXP_MATCHED) {
             writeToSDI12(String(address));
         }
 
@@ -99,11 +113,25 @@ public:
     }
 
     void writeToSDI12(String data) {
-        // DIRO Pin LOW to Send to SDI-12
-        digitalWrite(7, LOW);
-        Serial1.println(data);
-        // HIGH to Receive from SDI-12
-        digitalWrite(7, HIGH);
+      //lastSendTime = millis(); // Update the last send time
+
+      // DIRO Pin LOW to Send to SDI-12
+      digitalWrite(7, LOW);
+      Serial1.println(data);
+      Serial1.flush(); // Ensure all outgoing data has been transmitted
+
+      // Clear any data that may have been echoed back
+      while(Serial1.available() > 0) {
+          char junk = Serial1.read(); // Read and discard the incoming byte
+          // Optionally, print the junk data for debugging
+          //Serial.print("Discarded byte: ");
+          //Serial.println(junk, HEX);
+      }
+
+      delay(100); // Additional delay if necessary, adjust as needed
+
+      // DIRO Pin HIGH to Receive from SDI-12
+      digitalWrite(7, HIGH);
     }
 };
 
@@ -124,19 +152,23 @@ void setup() {
 }
 
 void loop() {
-    
-    if (Serial.available()) {
-    String input = Serial1.readStringUntil('\n');
-    char buf[input.length() + 1];
-    input.toCharArray(buf, input.length() + 1);
-    ms2.Target(buf);
+  
+  if (Serial1.available()) {
+    String input = Serial1.readStringUntil('\n'); // Read until newline character
+    char buf[input.length()]; // Buffer to hold the incoming data
+    //memset(buf, 0, sizeof(buf)); // Initialize the buffer with zeroes
     Serial.println(input);
-    if (ms2.Match(".+\?!") == REGEXP_MATCHED) {
-      Serial.println("working");
-    } else {
-      Serial.println("Invalid input");
+    // Copy the string into the buffer starting from the second character
+    for (int i = 1; i < input.length(); i++) {
+      buf[i-1] = input[i];
     }
-    Serial.println("Enter a string:");
-  }
 
+    for (int i = 0; i < input.length() - 1; i++) {
+      Serial.println(buf[i]);
+      Serial.print("0x");
+      Serial.println(buf[i], HEX);
+    }
+
+    sdi12.runCommand(buf);
+  }
 }
