@@ -1,4 +1,5 @@
 #include <Regexp.h>
+#include <BH1750.h>
 #include <Wire.h>
 #include <SPI.h>
 #include <Adafruit_Sensor.h>
@@ -7,16 +8,32 @@
 class SDI_12 {
 private:
     MatchState ms;
-    int BME_SCK = 13;
-    int BME_MISO = 12;
-    int BME_MOSI = 11;
-    int BME_CS = 10;
-    float SEALEVELPRESSURE_HPA = 1013.25;
     Adafruit_BME680 bme; // I2C
+    BH1750 lightMeter;
+
+    float SEALEVELPRESSURE_HPA = 1013.25;
     int address = 0;
     bool initialize = false;
+    int continusMesurmentSensorID ;
+
+    void startTimer(Tc *tc, uint32_t channel, IRQn_Type irq, uint32_t frequency)
+    {
+      pmc_set_writeprotect(false);
+      pmc_enable_periph_clk((uint32_t)irq);
+      TC_Configure(tc, channel, TC_CMR_WAVE | TC_CMR_WAVSEL_UP_RC
+      |TC_CMR_TCCLKS_TIMER_CLOCK4);
+      uint32_t rc = (VARIANT_MCK/128)*frequency;
+      TC_SetRA(tc, channel, rc/2); 
+      TC_SetRC(tc, channel, rc);
+      TC_Start(tc, channel);
+      tc->TC_CHANNEL[channel].TC_IER=TC_IER_CPCS;
+      tc->TC_CHANNEL[channel].TC_IDR=~TC_IER_CPCS;
+      NVIC_EnableIRQ(irq);
+    }
 
 public:
+    volatile bool measureFlag = false;
+
     void runCommand(char command[]) {
       Serial.println(command);
       ms.Target(command);
@@ -46,35 +63,57 @@ public:
           writeToSDI12("14");
           writeToSDI12("ENG2009");
           writeToSDI12("104643522");
+          
       }
 
       // Start Measurement
       if (ms.Match("^[0-9A-Z]+M!") == REGEXP_MATCHED) {
+          Wire.begin();
+
+          if (!initialize) {
+              if(!bme.begin(0x76)){
+                writeToSDI12("Error in the BME sensor");
+              }
+              else if(!lightMeter.begin()){
+                writeToSDI12("Error in the BH1750 sensor");
+              }else{
+                initialize = true;
+                writeToSDI12("Measurement Started");
+              }
+              
+          } else {
+              writeToSDI12("You already initialized it");
+          }
+
           bme.setTemperatureOversampling(BME680_OS_8X);
           bme.setHumidityOversampling(BME680_OS_2X);
           bme.setPressureOversampling(BME680_OS_4X);
           bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
           bme.setGasHeater(320, 150); // 320*C for 150 ms
 
-          if (!initialize) {
-              bme.begin(0x76);
-              initialize = true;
-              writeToSDI12("Measurement Started");
-          } else {
-              writeToSDI12("You already initialized it");
-          }
+          
       }
 
       // Send Data
-      if (ms.Match("^[0-9A-Z]+D[0-9]!") == REGEXP_MATCHED) {
+      if (ms.Match("^[0-9]+D[0-9]!") == REGEXP_MATCHED) {
           int commandAddress = command[0] - '0';
           int sensorID = command[2] - '0';
 
-          if (commandAddress != address) {
-              writeToSDI12("The address that you provided is not the current address. You can find the current address by using this command (?!)");
-          } else {
-              float value = getData(sensorID);
-              writeToSDI12(String(value));
+          if (commandAddress == address && initialize) {
+            String value =  String("a ") + String(getData(sensorID));
+            writeToSDI12(value);
+          }
+      }
+
+      // Continuous Data
+      if (ms.Match("^[0-9]+R[0-9]!") == REGEXP_MATCHED) {
+          int commandAddress = command[0] - '0';
+          int sensorID = command[2] - '0';
+
+          if (commandAddress == address && initialize) {
+            startTimer(TC0, 0, TC0_IRQn, 1);
+            continusMesurmentSensorID = sensorID;
+            Serial.println("Working");
           }
       }
     }
@@ -83,16 +122,28 @@ public:
         bme.performReading();
         float value = 0;
 
-        if (sensorID == 0) {
-            value = bme.temperature;
-        } else if (sensorID == 1) {
-            value = bme.pressure / 100.0;
-        } else if (sensorID == 2) {
+        switch(sensorID){
+          case 0 :{
+              value = bme.temperature;
+              break;
+          }
+          case 1 :{
             value = bme.humidity;
-        } else if (sensorID == 3) {
+            break;
+          }
+
+          case 3 :{
             value = bme.gas_resistance / 1000.0;
-        } else if (sensorID == 4) {
+            break;
+          }
+          case 4 :{
             value = bme.readAltitude(SEALEVELPRESSURE_HPA);
+            break;
+          }
+          case 5 :{
+            value = lightMeter.readLightLevel();
+            break;
+          }
         }
 
         return value;
@@ -119,10 +170,22 @@ public:
       // DIRO Pin HIGH to Receive from SDI-12
       digitalWrite(7, HIGH);
     }
+
+    void handleMeasurement() {
+        if (measureFlag) {
+            Serial.println("HMMM");
+            String value =  String("a ") + String(getData(continusMesurmentSensorID));
+            writeToSDI12(value);
+            Serial.println("Measurement taken and sent.");
+            measureFlag = false;
+        }
+    }
+
+    
 };
 
 SDI_12 sdi12;
-MatchState ms2;
+
 
 void setup() {
     Serial.begin(9600);
@@ -160,4 +223,13 @@ void loop() {
 
     sdi12.runCommand(buf);
   }
+  sdi12.handleMeasurement();
+}
+
+
+void TC0_Handler()
+{
+  TC_GetStatus(TC0, 0);
+  sdi12.measureFlag = true;
+  Serial.println("Working 1 s");
 }
