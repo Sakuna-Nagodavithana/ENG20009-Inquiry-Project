@@ -38,12 +38,6 @@ class LCD_Display {
 
     const int TFT_SCLK = 13;   
     const int TFT_MOSI = 11;   
-
-    //Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS,  TFT_DC, TFT_RST);
-    Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
-    
-  public:
-    RTC_DS1307 rtc;
     const int buttonPins[4] = {2, 3, 4, 5};
     bool fillRectNeeded = true;
 
@@ -51,7 +45,14 @@ class LCD_Display {
     unsigned long delayTime = 500;
 
     volatile int selectedOption = 0;
-    volatile int pageNum = 0;
+    volatile int pageNum = -1;
+
+    //Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS,  TFT_DC, TFT_RST);
+    Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
+    
+  public:
+    RTC_DS1307 rtc;
+    
 
     static void goBack(){
       
@@ -159,7 +160,7 @@ class LCD_Display {
 
     void mainMenu(){
       if(fillRectNeeded){
-        tft.fillRect(0, 15, 120, 85, ST77XX_BLACK);
+        tft.fillRect(0, 15, 160, 85, ST77XX_BLACK);
       }
       tft.setTextColor(ST77XX_BLUE);
       switch(selectedOption){
@@ -223,14 +224,33 @@ class LCD_Display {
     }
 
     void showGraph(){
-      //setLayOut();
-      if(fillRectNeeded){
-        tft.fillRect(0, 15, 120, 85, ST77XX_BLACK);
-      }
-      
-      tft.drawCircle(50, 50, 10, ST77XX_WHITE);
-      fillRectNeeded = false;
+    //setLayOut();
+    if(fillRectNeeded){
+      tft.fillRect(0, 15, 160, 85, ST77XX_BLACK);
     }
+    
+    tft.drawLine(21.64, 25, 21.64, 92.52, ST77XX_WHITE);
+    tft.drawLine(21.64, 25, 19, 30.46, ST77XX_WHITE);
+    tft.drawLine(21.64, 25, 24.27, 30.46, ST77XX_WHITE);
+    tft.drawLine(21.64, 92.52, 139, 92.52, ST77XX_WHITE);
+    tft.drawLine(139, 92.52, 132.41, 88.06, ST77XX_WHITE);
+    tft.drawLine(139, 92.52, 132.41, 96, ST77XX_WHITE);
+
+    tft.setCursor(15, 14);
+    tft.setTextColor(ST77XX_WHITE);
+    tft.print("Y axis");
+    
+    
+    tft.setCursor(68, 92);
+    tft.print("X axis");
+    int y[] = {1,2,3,4,5};
+    tft.drawLine(25, 85.5 , 45, 85.5 - y[0], ST77XX_WHITE);
+    tft.drawLine(45 , 85.5 - y[0], 65, 85.5 - y[1], ST77XX_WHITE);
+    tft.drawLine(65, 85.5 - y[1], 85, 85.5 - y[2], ST77XX_WHITE);
+    tft.drawLine(85, 85.5 - y[2], 105, 85.5 - y[3], ST77XX_WHITE);
+    tft.drawLine(105 , 85.5 - y[3], 125, 85.5 - y[4], ST77XX_WHITE);
+    fillRectNeeded = false;
+  }
 
     void handleButtons(){
       if(millis() - last_interrupt_time > delayTime && anyButtonClick){
@@ -283,7 +303,7 @@ void setup() {
 }
 
 void loop() {
-
+  
   
   DateTime now = display.rtc.now();
   display.displayTime(now);

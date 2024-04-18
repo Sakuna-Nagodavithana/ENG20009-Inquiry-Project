@@ -75,8 +75,9 @@ void loop() {
   handleButtons();
 
   
-  
-  
+
+
+
  
 
 
@@ -129,7 +130,7 @@ void setLayOut(){
   rtc.begin();
   
   rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-  
+
   tft.drawLine(0, 13, 159, 13, ST77XX_WHITE);
 
 
@@ -195,7 +196,7 @@ void displayTime(DateTime now){
 
 void mainMenu(){
   if(fillRectNeeded){
-    tft.fillRect(0, 15, 120, 85, ST77XX_BLACK);
+    tft.fillRect(0, 15, 160, 85, ST77XX_BLACK);
   }
   tft.setTextColor(ST77XX_BLUE);
   switch(selectedOption){
@@ -261,10 +262,29 @@ void mainMenu(){
 void showGraph(){
   //setLayOut();
   if(fillRectNeeded){
-    tft.fillRect(0, 15, 120, 85, ST77XX_BLACK);
+    tft.fillRect(0, 15, 160, 85, ST77XX_BLACK);
   }
   
-  tft.drawCircle(50, 50, 10, ST77XX_WHITE);
+  tft.drawLine(21.64, 25, 21.64, 92.52, ST77XX_WHITE);
+  tft.drawLine(21.64, 25, 19, 30.46, ST77XX_WHITE);
+  tft.drawLine(21.64, 25, 24.27, 30.46, ST77XX_WHITE);
+  tft.drawLine(21.64, 92.52, 139, 92.52, ST77XX_WHITE);
+  tft.drawLine(139, 92.52, 132.41, 88.06, ST77XX_WHITE);
+  tft.drawLine(139, 92.52, 132.41, 96, ST77XX_WHITE);
+
+  tft.setCursor(15, 14);
+  tft.setTextColor(ST77XX_WHITE);
+  tft.print("Y axis");
+  
+  
+  tft.setCursor(68, 92);
+  tft.print("X axis");
+  int y[] = {1,2,3,4,5};
+  tft.drawLine(25, 85.5 , 45, 85.5 - y[0], ST77XX_WHITE);
+  tft.drawLine(45 , 85.5 - y[0], 65, 85.5 - y[1], ST77XX_WHITE);
+  tft.drawLine(65, 85.5 - y[1], 85, 85.5 - y[2], ST77XX_WHITE);
+  tft.drawLine(85, 85.5 - y[2], 105, 85.5 - y[3], ST77XX_WHITE);
+  tft.drawLine(105 , 85.5 - y[3], 125, 85.5 - y[4], ST77XX_WHITE);
   fillRectNeeded = false;
 }
 
