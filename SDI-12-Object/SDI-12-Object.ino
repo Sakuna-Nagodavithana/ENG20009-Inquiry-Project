@@ -131,7 +131,9 @@ public:
             value = bme.humidity;
             break;
           }
-
+          case 2:{
+              value = bme.pressure / 100.0
+          }
           case 3 :{
             value = bme.gas_resistance / 1000.0;
             break;
