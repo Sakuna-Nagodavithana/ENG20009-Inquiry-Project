@@ -8,8 +8,6 @@ SdFs sd; // SD card filesystem
 FsFile file;
 
 
-
-
 //^ configuration for FAT16/FAT32 and exFAT.
 
 // Chip select may be constant or RAM variable.
@@ -43,33 +41,17 @@ RTC_DS1307 rtc;
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
 
 const int buttonPins[] = {2,3,4,5};
+volatile bool buttonClicks[] = {false,false,false,false}; 
+volatile bool anyButtonClick = false;
+bool fillRectNeeded = true;
 
-volatile int goBackNum = 0;
-volatile int goDownNum = 0;
-volatile int goUpNum = 0;
+static unsigned long last_interrupt_time = 0;
+unsigned long delayTime = 500;
+
 volatile int selectedOption = 0;
-volatile int goFrontNum = 0;
+volatile int pageNum = 0;
 
-void setup(void) {
-
-  for(int pin:buttonPins){
-    pinMode(pin,INPUT_PULLUP);
-  }
-
-  attachInterrupt(digitalPinToInterrupt(buttonPins[0]), goBack, FALLING); 
-  attachInterrupt(digitalPinToInterrupt(buttonPins[1]), goDown, FALLING); 
-  attachInterrupt(digitalPinToInterrupt(buttonPins[2]), goUp, FALLING); 
-  attachInterrupt(digitalPinToInterrupt(buttonPins[3]), goFront, FALLING); 
-  Serial.begin(9600);
-  //Serial.print(F("Hello! ST77xx TFT Test"));
-  
-  // Use this initializer if using a 1.8" TFT screen:
-  tft.initR(INITR_BLACKTAB); // Init ST7735S chip, black tab
-  tft.fillScreen(ST77XX_BLACK);
-  tft.setRotation(3);
-  rtc.begin();
-  
-  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+void setup() {
 
   setLayOut();
 
@@ -84,64 +66,19 @@ void setup(void) {
 }
 
 void loop() {
-  goBackNum = constrain(goBackNum,0,1);
-  goUpNum = constrain(goUpNum,0,1);
-  goDownNum = constrain(goDownNum,0,1);
-  goFrontNum = constrain(goFrontNum,0,1);
-
-  tft.setTextColor(ST77XX_BLUE);
-  switch(selectedOption){
-    case 0:{
-      tft.setCursor(13, 22);
-      tft.println("Sensor 1");
-      break;
-    }
-    case 1:{
-      tft.setCursor(13, 36);
-      tft.println("Sensor 2");
-      break;
-    }
-  }
-
-  DateTime now = rtc.now();
 
   
-  tft.setTextWrap(false);
-  tft.setCursor(3, 3);
-  tft.setTextSize(1);
 
-  tft.setTextColor(ST77XX_WHITE);
-  tft.print(now.year(), DEC);
-  tft.print('/');
-  tft.print(now.month(), DEC);
-  tft.print('/');
-  tft.print(now.day(), DEC);
+  DateTime now = rtc.now();
+  displayTime(now);
 
-  tft.setCursor(115, 3);
-  tft.print(now.hour(), DEC);
-  tft.print(':');
-  tft.print(now.minute(), DEC);
-  tft.print(':');
-  tft.print(now.second(), DEC);
-  tft.println();
+  handleButtons();
 
-  tft.setTextColor(ST77XX_BLACK);
-
-  tft.setCursor(115, 3);
-  tft.print(now.hour(), DEC);
-  tft.print(':');
-  tft.print(now.minute(), DEC);
-  tft.print(':');
-  tft.print(now.second(), DEC);
-  tft.println();
+  
 
 
-  tft.setTextColor(ST77XX_WHITE);
-  tft.setCursor(13, 22);
-  tft.println("Sensor 1");
 
-  tft.setCursor(13, 36);
-  tft.println("Sensor 2");
+ 
 
 
 
@@ -152,29 +89,48 @@ void loop() {
 
 
 void goBack(){
-  //goBackNum++;
+  
+  buttonClicks[0] = true;
+  anyButtonClick = true;
 }
 
 void goDown(){
-  Serial.print("Before Minu : ");Serial.println(selectedOption);
-  selectedOption = constrain(--selectedOption,0,1);
-  Serial.print("After Minu : ");Serial.println(selectedOption);
-
+  
+  buttonClicks[1] = true;
+  anyButtonClick = true;
 }
 
 void goUp(){
-  Serial.print("Before Add : ");Serial.println(selectedOption);
-  selectedOption = constrain(++selectedOption,0,1);
-  Serial.print("After Add : ");Serial.println(selectedOption);
+  buttonClicks[2] = true;
+  anyButtonClick = true;
 }
 
 void goFront(){
-  //goFront++;
+  buttonClicks[3] = true;
+  anyButtonClick = true;
 }
 
 
 void setLayOut(){
+    for(int pin:buttonPins){
+    pinMode(pin,INPUT_PULLUP);
+  }
+
+  attachInterrupt(digitalPinToInterrupt(buttonPins[0]), goBack, RISING); 
+  attachInterrupt(digitalPinToInterrupt(buttonPins[1]), goDown, RISING); 
+  attachInterrupt(digitalPinToInterrupt(buttonPins[2]), goUp, RISING); 
+  attachInterrupt(digitalPinToInterrupt(buttonPins[3]), goFront, RISING); 
+  Serial.begin(9600);
+  //Serial.print(F("Hello! ST77xx TFT Test"));
   
+  // Use this initializer if using a 1.8" TFT screen:
+  tft.initR(INITR_BLACKTAB); // Init ST7735S chip, black tab
+  tft.fillScreen(ST77XX_BLACK);
+  tft.setRotation(3);
+  rtc.begin();
+  
+  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+
   tft.drawLine(0, 13, 159, 13, ST77XX_WHITE);
 
 
@@ -203,5 +159,172 @@ void setLayOut(){
   tft.fillTriangle(97, 115, 102, 110,107 ,115, ST77XX_BLACK);
   tft.fillTriangle(99, 115, 102, 112, 105, 115, ST77XX_GREEN);
   tft.fillRect(102.75, 114, 1.5, 7, ST77XX_BLACK);
+}
+
+void displayTime(DateTime now){
+    tft.setTextWrap(false);
+    tft.setCursor(3, 3);
+    tft.setTextSize(1);
+
+    tft.setTextColor(ST77XX_WHITE);
+    tft.print(now.year(), DEC);
+    tft.print('/');
+    tft.print(now.month(), DEC);
+    tft.print('/');
+    tft.print(now.day(), DEC);
+
+    tft.setCursor(115, 3);
+    tft.print(now.hour(), DEC);
+    tft.print(':');
+    tft.print(now.minute(), DEC);
+    tft.print(':');
+    tft.print(now.second(), DEC);
+    tft.println();
+
+    tft.setTextColor(ST77XX_BLACK);
+
+    tft.setCursor(115, 3);
+    tft.print(now.hour(), DEC);
+    tft.print(':');
+    tft.print(now.minute(), DEC);
+    tft.print(':');
+    tft.print(now.second(), DEC);
+    tft.println();
+
+}
+
+
+void mainMenu(){
+  if(fillRectNeeded){
+    tft.fillRect(0, 15, 160, 85, ST77XX_BLACK);
+  }
+  tft.setTextColor(ST77XX_BLUE);
+  switch(selectedOption){
+    case 0:{
+      tft.setCursor(15, 22);
+      tft.println("Temperature");
+      break;
+    }
+    case 1:{
+      tft.setCursor(15, 34);
+      tft.println("Humidity");
+      break;
+    }
+    case 2:{
+      tft.setCursor(15, 46);
+      tft.println("Humidity");
+      break;
+    }
+    case 3:{
+      tft.setCursor(15, 58);
+      tft.println("Gas Resistance");
+      break;
+    }
+    case 4:{
+      tft.setCursor(15, 70);
+      tft.println("Altutude");
+      break;
+    }
+    case 5:{
+      tft.setCursor(15, 82);
+      tft.println("Light Level");
+      break;
+    }
+
+  }
+
+  tft.setTextColor(ST77XX_WHITE);
+  tft.setCursor(15, 22);
+  tft.println("Temperature");
+
+
+  tft.setCursor(15, 34);
+  tft.println("Humidity");
+
+
+  tft.setCursor(15, 46);
+  tft.println("Humidity");
+
+
+  tft.setCursor(15, 58);
+  tft.println("Gas Resistance");
+
+
+  tft.setCursor(15, 70);
+  tft.println("Altutude");
+
+
+  tft.setCursor(15, 82);
+  tft.println("Light Level");
+  fillRectNeeded = false;
+}
+
+void showGraph(){
+  //setLayOut();
+  if(fillRectNeeded){
+    tft.fillRect(0, 15, 160, 85, ST77XX_BLACK);
+  }
+  
+  tft.drawLine(21.64, 25, 21.64, 92.52, ST77XX_WHITE);
+  tft.drawLine(21.64, 25, 19, 30.46, ST77XX_WHITE);
+  tft.drawLine(21.64, 25, 24.27, 30.46, ST77XX_WHITE);
+  tft.drawLine(21.64, 92.52, 139, 92.52, ST77XX_WHITE);
+  tft.drawLine(139, 92.52, 132.41, 88.06, ST77XX_WHITE);
+  tft.drawLine(139, 92.52, 132.41, 96, ST77XX_WHITE);
+
+  tft.setCursor(15, 14);
+  tft.setTextColor(ST77XX_WHITE);
+  tft.print("Y axis");
+  
+  
+  tft.setCursor(68, 92);
+  tft.print("X axis");
+  int y[] = {1,2,3,4,5};
+  tft.drawLine(25, 85.5 , 45, 85.5 - y[0], ST77XX_WHITE);
+  tft.drawLine(45 , 85.5 - y[0], 65, 85.5 - y[1], ST77XX_WHITE);
+  tft.drawLine(65, 85.5 - y[1], 85, 85.5 - y[2], ST77XX_WHITE);
+  tft.drawLine(85, 85.5 - y[2], 105, 85.5 - y[3], ST77XX_WHITE);
+  tft.drawLine(105 , 85.5 - y[3], 125, 85.5 - y[4], ST77XX_WHITE);
+  fillRectNeeded = false;
+}
+
+void handleButtons(){
+  if(millis() - last_interrupt_time > delayTime && anyButtonClick){
+    
+    if (buttonClicks[0]) {
+      pageNum = (pageNum + 1) % 2;
+      buttonClicks[0] = false;
+      fillRectNeeded = true;
+    }
+
+    if (buttonClicks[1]) {
+      selectedOption = (selectedOption - 1 + 6) % 6;
+      buttonClicks[1] = false;
+    }
+    
+    if (buttonClicks[2]) {
+      selectedOption = (selectedOption + 1) % 6;
+      buttonClicks[2] = false;
+    }
+
+    if (buttonClicks[3]) {
+      pageNum = (pageNum - 1 + 2) % 2;
+      buttonClicks[3] = false;
+      fillRectNeeded = true;
+    }
+    Serial.print("Slected Option = ");Serial.println(selectedOption);
+    last_interrupt_time = millis();
+    anyButtonClick = false;
+  }
+
+
+  if(pageNum == 0){
+    mainMenu();
+    Serial.println("Working");
+  } else if (pageNum == 1){
+    showGraph();
+  }
+  Serial.print("PageNO : ");Serial.println(pageNum);
+  
 }
 
