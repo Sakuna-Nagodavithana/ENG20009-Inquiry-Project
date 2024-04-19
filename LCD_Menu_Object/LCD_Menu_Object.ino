@@ -53,6 +53,13 @@ class LCD_Display {
     volatile int selectedOption = 0;
     volatile int pageNum = 0;
 
+    int button1State = 0;
+    int button2State = 0;
+    int prevButton1State = 0;
+    int prevButton2State = 0;
+
+    bool displayState = false;
+
     static void goBack(){
       
       buttonClicks[0] = true;
@@ -231,47 +238,68 @@ class LCD_Display {
       tft.drawCircle(50, 50, 10, ST77XX_WHITE);
       fillRectNeeded = false;
     }
+    void displayStat(){
+      // Read the current state of the buttons
+      button1State = digitalRead(buttonPins[0]);
+      button2State = digitalRead(buttonPins[1]);
 
-    void handleButtons(){
-      if(millis() - last_interrupt_time > delayTime && anyButtonClick){
-        
-        if (buttonClicks[0]) {
-          pageNum = (pageNum + 1) % 2;
-          buttonClicks[0] = false;
-          fillRectNeeded = true;
-        }
+      // Check if both buttons are pressed
+      if (button1State == LOW && button2State == LOW) {
+        // Both buttons are pressed
+        if (prevButton1State == HIGH || prevButton2State == HIGH) {
+          // Perform the desired action when both buttons are pressed
+          displayState != displayState;
 
-        if (buttonClicks[1]) {
-          selectedOption = (selectedOption - 1 + 6) % 6;
-          buttonClicks[1] = false;
         }
-        
-        if (buttonClicks[2]) {
-          selectedOption = (selectedOption + 1) % 6;
-          buttonClicks[2] = false;
-        }
-
-        if (buttonClicks[3]) {
-          pageNum = (pageNum - 1 + 2) % 2;
-          buttonClicks[3] = false;
-          fillRectNeeded = true;
-        }
-        Serial.print("Slected Option = ");Serial.println(selectedOption);
-        last_interrupt_time = millis();
-        anyButtonClick = false;
       }
 
-
-      if(pageNum == 0){
-        mainMenu();
-        Serial.println("Working");
-      } else if (pageNum == 1){
-        showGraph();
-      }
-      Serial.print("PageNO : ");Serial.println(pageNum);
-      
+      // Save the current button states for the next iteration
+      prevButton1State = button1State;
+      prevButton2State = button2State;
     }
 
+    void handleButtons(){
+      displayStat();
+      if(displayState){
+        if(millis() - last_interrupt_time > delayTime && anyButtonClick){
+        
+          if (buttonClicks[0]) {
+            pageNum = (pageNum + 1) % 2;
+            buttonClicks[0] = false;
+            fillRectNeeded = true;
+          }
+
+          if (buttonClicks[1]) {
+            selectedOption = (selectedOption - 1 + 6) % 6;
+            buttonClicks[1] = false;
+          }
+          
+          if (buttonClicks[2]) {
+            selectedOption = (selectedOption + 1) % 6;
+            buttonClicks[2] = false;
+          }
+
+          if (buttonClicks[3]) {
+            pageNum = (pageNum - 1 + 2) % 2;
+            buttonClicks[3] = false;
+            fillRectNeeded = true;
+          }
+          Serial.print("Slected Option = ");Serial.println(selectedOption);
+          last_interrupt_time = millis();
+          anyButtonClick = false;
+        }
+
+
+        if(pageNum == 0){
+          mainMenu();
+          Serial.println("Working");
+        } else if (pageNum == 1){
+          showGraph();
+        }
+        Serial.print("PageNO : ");Serial.println(pageNum);
+        
+      }
+    }
 
 };
 

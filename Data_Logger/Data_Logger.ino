@@ -164,6 +164,8 @@ public:
       digitalWrite(7, LOW); 
       Serial1.println("HelloWorld");
       delay(100);
+      //HIGH to Receive from SDI-12
+      digitalWrite(7, HIGH); 
     }
 
     void writeToSDI12(String data) {
@@ -227,7 +229,6 @@ public:
 static volatile bool buttonClicks[4] = {false, false, false, false};
 static volatile bool anyButtonClick = false;
 
-SDI_12 sdi12;
 
 class LCD_Display {
   private:
@@ -425,7 +426,7 @@ class LCD_Display {
 
     void showGraph(){
       //setLayOut();
-      getDataFromSensor(&SDI_12::getData);
+      //getDataFromSensor(&SDI_12::getData);
       if(fillRectNeeded){
         tft.fillRect(0, 15, 160, 85, ST77XX_BLACK);
       }
@@ -453,12 +454,6 @@ class LCD_Display {
       fillRectNeeded = false;
     }
 
-    void getDataFromSensor(float (SDI_12::*getValue)(int)){
-      for(int i = 0 ;i > 5;i++){
-          sensorValues[i] = (sdi12.*getValue)(i);
-      }
-
-    }
 
     void handleButtons(){
       if(millis() - last_interrupt_time > delayTime && anyButtonClick){
@@ -503,56 +498,98 @@ class LCD_Display {
 
 };
 
-LCD_Display display;
 
+class Data_Logger{
+  public:
+    SDI_12 sdi12;
+    LCD_Display display;
+    bool displayState  = false;
+    int button1State = 0;
+    int button2State = 0;
+    int prevButton1State = 0;
+    int prevButton2State = 0;
 
+    void init(){
+      sdi12.setUp();
+      display.setLayOut();
+    }
+
+    void displayStat(){
+      // Read the current state of the buttons
+      button1State = digitalRead(display.buttonPins[0]);
+      button2State = digitalRead(display.buttonPins[1]);
+
+      // Check if both buttons are pressed
+      if (button1State == LOW && button2State == LOW) {
+        // Both buttons are pressed
+        if (prevButton1State == HIGH || prevButton2State == HIGH) {
+          // Toggle the display state
+          displayState ^= true;
+        }
+      }
+      // Save the current button states for the next iteration
+      prevButton1State = button1State;
+      prevButton2State = button2State;
+  }
+
+    void handleLogger(){
+
+      if (Serial1.available()) {
+        String input = Serial1.readStringUntil('\n'); // Read until newline character
+        char buf[input.length()]; // Buffer to hold the incoming data
+        memset(buf, 0, sizeof(buf)); // Initialize the buffer with zeroes
+
+        // Copy the string into the buffer starting from the second character
+        for (int i = 1; i < input.length(); i++) {
+          buf[i - 1] = input[i];
+        }
+        
+        // Print the received input for debugging
+        //Serial.println(input);
+
+        // Debugging: print each character in hex starting from the first copied character
+        // for (int i = 0; i < input.length() - 1; i++) {
+        //   Serial.print("0x");
+        //   Serial.println(buf[i], HEX);
+        // }
+
+        sdi12.runCommand(buf);
+      }
+      sdi12.handleMeasurement();
+
+      displayStat();
+      if (!displayState) return;
+      if(display.pageNum == 1){
+        for(int i = 0 ; i < 5;i++){
+          display.sensorValues[i] = sdi12.getData(display.selectedOption);
+        }
+      }
+      DateTime now = display.rtc.now();
+      display.displayTime(now);
+
+      display.handleButtons();
+      
+      
+    }
+};
+
+Data_Logger logger;
 
 void setup() {
-    
-
-    //HIGH to Receive from SDI-12
-    digitalWrite(7, HIGH); 
-    sdi12.setUp();
-
-    display.setLayOut();
+  logger.init();
 }
 
 
 void loop() {
   
-  DateTime now = display.rtc.now();
-  display.displayTime(now);
-
-  display.handleButtons();
-
-  if (Serial1.available()) {
-    String input = Serial1.readStringUntil('\n'); // Read until newline character
-    char buf[input.length()]; // Buffer to hold the incoming data
-    memset(buf, 0, sizeof(buf)); // Initialize the buffer with zeroes
-
-    // Copy the string into the buffer starting from the second character
-    for (int i = 1; i < input.length(); i++) {
-      buf[i - 1] = input[i];
-    }
-    
-    // Print the received input for debugging
-    Serial.println(input);
-
-    // Debugging: print each character in hex starting from the first copied character
-    for (int i = 0; i < input.length() - 1; i++) {
-      Serial.print("0x");
-      Serial.println(buf[i], HEX);
-    }
-
-    sdi12.runCommand(buf);
-  }
-  sdi12.handleMeasurement();
+  logger.handleLogger();
+  
 }
 
 
 void TC0_Handler()
 {
   TC_GetStatus(TC0, 0);
-  sdi12.measureFlag = true;
-  Serial.println("Working 1 s");
+  logger.sdi12.measureFlag = true;
+  //Serial.println("Working 1 s");
 }
