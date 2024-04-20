@@ -245,6 +245,7 @@ class LCD_Display {
     
   public:
     float sensorValues[5]; 
+    int mappedSensorValues[5];
     RTC_DS1307 rtc;
     const int buttonPins[4] = {2, 3, 4, 5};
     bool fillRectNeeded = true;
@@ -254,6 +255,14 @@ class LCD_Display {
 
     volatile int selectedOption = 0;
     volatile int pageNum = -1;
+
+    char minValue[50];
+    char maxValue[50]; 
+
+    int upperValue;
+    int lowerValue;
+
+    char sensorName[50] ;
 
     static void goBack(){
       
@@ -397,6 +406,7 @@ class LCD_Display {
         }
 
       }
+      
 
       tft.setTextColor(ST77XX_WHITE);
       tft.setCursor(15, 22);
@@ -408,7 +418,7 @@ class LCD_Display {
 
 
       tft.setCursor(15, 46);
-      tft.println("Humidity");
+      tft.println("Pressure");
 
 
       tft.setCursor(15, 58);
@@ -431,6 +441,68 @@ class LCD_Display {
         tft.fillRect(0, 15, 160, 85, ST77XX_BLACK);
       }
 
+      switch(selectedOption){
+        case 0:{
+          strcpy(sensorName,"Temperature (*C)");
+          lowerValue = 0;
+          upperValue = 85;
+          strcpy(minValue,"0");
+          strcpy(maxValue,"85");
+          break;
+        }
+        case 1:{
+          strcpy(sensorName,"Humidity (%)");
+          lowerValue = 0;
+          upperValue = 100;
+          strcpy(minValue,"0");
+          strcpy(maxValue,"100");
+          break;
+        }
+        case 2:{
+          strcpy(sensorName,"Pressure (hPa)");
+          lowerValue = 300;
+          upperValue = 1100;
+          strcpy(minValue,"300");
+          strcpy(maxValue,"1100");
+          break;
+        }
+        case 3:{
+          strcpy(sensorName,"Gas Resistance (ohm)");
+          lowerValue = 10000;
+          upperValue = 1000000;
+          strcpy(minValue,"10K");
+          strcpy(maxValue,"1M");
+          break;
+        }
+        case 4:{
+          strcpy(sensorName,"Altatude (lux)");
+          lowerValue = 0;
+          upperValue = 9300;
+          strcpy(minValue,"0");
+          strcpy(maxValue,"9.3K");
+          break;
+        }
+        case 5:{
+          strcpy(sensorName,"Light Sensor (lux)");
+          lowerValue = 0;
+          upperValue = 100000;
+          strcpy(minValue,"0");
+          strcpy(maxValue,"100K");
+          break;
+        }
+
+      }
+
+      for(int i = 0 ; i < 5;i++){
+        mappedSensorValues[i] = map(sensorValues[i],lowerValue,upperValue,0,50);
+      }
+
+      tft.drawLine(25, 85.5 , 45, 85.5 - mappedSensorValues[0], ST77XX_BLACK);
+      tft.drawLine(45 , 85.5 - mappedSensorValues[0], 65, 85.5 - mappedSensorValues[1], ST77XX_BLACK);
+      tft.drawLine(65, 85.5 - mappedSensorValues[1], 85, 85.5 - mappedSensorValues[2], ST77XX_BLACK);
+      tft.drawLine(85, 85.5 - mappedSensorValues[2], 105, 85.5 - mappedSensorValues[3], ST77XX_BLACK);
+      tft.drawLine(105 , 85.5 - mappedSensorValues[3], 125, 85.5 - mappedSensorValues[4], ST77XX_BLACK);
+
       tft.drawLine(21.64, 25, 21.64, 92.52, ST77XX_WHITE);
       tft.drawLine(21.64, 25, 19, 30.46, ST77XX_WHITE);
       tft.drawLine(21.64, 25, 24.27, 30.46, ST77XX_WHITE);
@@ -442,15 +514,26 @@ class LCD_Display {
       tft.setTextColor(ST77XX_WHITE);
       tft.print("Y axis");
 
+      tft.setCursor(53, 20);
+      tft.print(sensorName);
+
+      tft.setCursor(1, 29);
+      tft.print(maxValue);
+
+      tft.setCursor(1, 80);
+      tft.print(minValue);
+
 
       tft.setCursor(68, 92);
       tft.print("X axis");
      
-      tft.drawLine(25, 85.5 , 45, 85.5 - sensorValues[0], ST77XX_WHITE);
-      tft.drawLine(45 , 85.5 - sensorValues[0], 65, 85.5 - sensorValues[1], ST77XX_WHITE);
-      tft.drawLine(65, 85.5 - sensorValues[1], 85, 85.5 - sensorValues[2], ST77XX_WHITE);
-      tft.drawLine(85, 85.5 - sensorValues[2], 105, 85.5 - sensorValues[3], ST77XX_WHITE);
-      tft.drawLine(105 , 85.5 - sensorValues[3], 125, 85.5 - sensorValues[4], ST77XX_WHITE);
+      tft.drawLine(25, 85.5 , 45, 85.5 - mappedSensorValues[0], ST77XX_WHITE);
+      tft.drawLine(45 , 85.5 - mappedSensorValues[0], 65, 85.5 - mappedSensorValues[1], ST77XX_WHITE);
+      tft.drawLine(65, 85.5 - mappedSensorValues[1], 85, 85.5 - mappedSensorValues[2], ST77XX_WHITE);
+      tft.drawLine(85, 85.5 - mappedSensorValues[2], 105, 85.5 - mappedSensorValues[3], ST77XX_WHITE);
+      tft.drawLine(105 , 85.5 - mappedSensorValues[3], 125, 85.5 - mappedSensorValues[4], ST77XX_WHITE);
+
+      
       fillRectNeeded = false;
     }
 
@@ -509,9 +592,36 @@ class Data_Logger{
     int prevButton1State = 0;
     int prevButton2State = 0;
 
+    SdFs sd;
+    FsFile file;
+    //^ configuration for FAT16/FAT32 and exFAT.
+
+    // Chip select may be constant or RAM variable.
+    uint8_t SD_CS_PIN = A3;
+    //
+    // Pin numbers in templates must be constants.
+    static constexpr uint8_t SOFT_MISO_PIN = 12;
+    static constexpr uint8_t SOFT_MOSI_PIN = 11;
+    static constexpr uint8_t SOFT_SCK_PIN  = 13;
+
+    // SdFat software SPI template
+    SoftSpiDriver<SOFT_MISO_PIN, SOFT_MOSI_PIN, SOFT_SCK_PIN> softSpi;
+
+    #define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SD_SCK_MHZ(0), &softSpi)
+
     void init(){
       sdi12.setUp();
+      if (!sd.begin(SD_CONFIG)) {
+        Serial.println("SD card initialization failed!");
+        return;
+      }
+      if (!file.open("Sensor_Data.txt", O_RDWR | O_CREAT)) {
+        Serial.println(F("open failed"));
+      }
+
+      file.close();
       display.setLayOut();
+      
     }
 
     void displayStat(){
@@ -545,31 +655,64 @@ class Data_Logger{
         }
         
         // Print the received input for debugging
-        //Serial.println(input);
+        Serial.println(input);
 
-        // Debugging: print each character in hex starting from the first copied character
-        // for (int i = 0; i < input.length() - 1; i++) {
-        //   Serial.print("0x");
-        //   Serial.println(buf[i], HEX);
-        // }
+        //Debugging: print each character in hex starting from the first copied character
+        for (int i = 0; i < input.length() - 1; i++) {
+          Serial.print("0x");
+          Serial.println(buf[i], HEX);
+        }
 
         sdi12.runCommand(buf);
       }
       sdi12.handleMeasurement();
 
       displayStat();
+      
+
       if (!displayState) return;
       if(display.pageNum == 1){
         for(int i = 0 ; i < 5;i++){
           display.sensorValues[i] = sdi12.getData(display.selectedOption);
         }
+        saveData(file,display.sensorValues,display.sensorName,display.rtc.now());
       }
+      
       DateTime now = display.rtc.now();
       display.displayTime(now);
-
       display.handleButtons();
       
       
+    }
+
+    void saveData(FsFile file,float sensorValues[5],char sensorName[50],DateTime now){
+      file.open("Sensor_Data.txt",O_RDWR);
+      Serial.println("Woring");
+      //file.rewind();
+      file.seekEnd(); 
+      file.println("-----------------------------------------------------------------------------------------------------------------------------------------------------");
+      file.println(sensorName);
+      file.println("-----------------------------------------------------------------------------------------------------------------------------------------------------");
+      for(int i = 0;i < 5;i++){
+        file.print("Date : ");
+        file.print(now.year());
+        file.print("/");
+        file.print(now.month());
+        file.print("/");
+        file.print(now.day());
+        file.print("  -  ");
+        file.print(now.hour());
+        file.print(":");
+        file.print(now.minute());
+        file.print(":");
+        file.print(now.second());
+        file.print(" | Value : ");
+        file.print(sensorValues[i]);
+        file.print(" | ");
+        file.println();
+      } 
+      
+      file.close();
     }
 };
 
