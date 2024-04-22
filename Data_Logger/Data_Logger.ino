@@ -105,7 +105,7 @@ public:
           int sensorID = command[2] - '0';
 
           if (commandAddress == address && initialize) {
-            String value =  String("a ") + String(getData(sensorID));
+            String value =  String(address) + String(" ")+String(getData(sensorID));
             writeToSDI12(value);
           }
       }
@@ -159,20 +159,20 @@ public:
     void setUp(){
       Serial.begin(9600);
       Serial1.begin(1200, SERIAL_7E1);
-      pinMode(7, OUTPUT); 
+      pinMode(8, OUTPUT); 
       //DIRO Pin LOW to Send to SDI-12
-      digitalWrite(7, LOW); 
+      digitalWrite(8, LOW); 
       Serial1.println("HelloWorld");
       delay(100);
       //HIGH to Receive from SDI-12
-      digitalWrite(7, HIGH); 
+      digitalWrite(8, HIGH); 
     }
 
     void writeToSDI12(String data) {
       //lastSendTime = millis(); // Update the last send time
 
       // DIRO Pin LOW to Send to SDI-12
-      digitalWrite(7, LOW);
+      digitalWrite(8, LOW);
       Serial1.println(data);
       Serial1.flush(); // Ensure all outgoing data has been transmitted
 
@@ -187,13 +187,12 @@ public:
       delay(100); // Additional delay if necessary, adjust as needed
 
       // DIRO Pin HIGH to Receive from SDI-12
-      digitalWrite(7, HIGH);
+      digitalWrite(8, HIGH);
     }
 
     void handleMeasurement() {
         if (measureFlag) {
-            Serial.println("HMMM");
-            String value =  String("a ") + String(getData(continusMesurmentSensorID));
+            String value =  String(address) + String(" ")+String(getData(continusMesurmentSensorID));
             writeToSDI12(value);
             Serial.println("Measurement taken and sent.");
             measureFlag = false;
@@ -286,8 +285,7 @@ class LCD_Display {
       anyButtonClick = true;
     }
 
-
-    void setLayOut(){
+    void init(){
       for(int pin:buttonPins){
         pinMode(pin,INPUT_PULLUP);
       }
@@ -304,6 +302,10 @@ class LCD_Display {
       rtc.begin();
       
       rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    }
+
+    void setLayOut(){
+      
 
       tft.drawLine(0, 13, 159, 13, ST77XX_WHITE);
 
@@ -386,7 +388,7 @@ class LCD_Display {
         }
         case 2:{
           tft.setCursor(15, 46);
-          tft.println("Humidity");
+          tft.println("Pressure");
           break;
         }
         case 3:{
@@ -493,15 +495,15 @@ class LCD_Display {
 
       }
 
-      for(int i = 0 ; i < 5;i++){
-        mappedSensorValues[i] = map(sensorValues[i],lowerValue,upperValue,0,50);
-      }
-
       tft.drawLine(25, 85.5 , 45, 85.5 - mappedSensorValues[0], ST77XX_BLACK);
       tft.drawLine(45 , 85.5 - mappedSensorValues[0], 65, 85.5 - mappedSensorValues[1], ST77XX_BLACK);
       tft.drawLine(65, 85.5 - mappedSensorValues[1], 85, 85.5 - mappedSensorValues[2], ST77XX_BLACK);
       tft.drawLine(85, 85.5 - mappedSensorValues[2], 105, 85.5 - mappedSensorValues[3], ST77XX_BLACK);
       tft.drawLine(105 , 85.5 - mappedSensorValues[3], 125, 85.5 - mappedSensorValues[4], ST77XX_BLACK);
+
+      for(int i = 0 ; i < 5;i++){
+        mappedSensorValues[i] = map(sensorValues[i],lowerValue,upperValue,0,50);
+      }
 
       tft.drawLine(21.64, 25, 21.64, 92.52, ST77XX_WHITE);
       tft.drawLine(21.64, 25, 19, 30.46, ST77XX_WHITE);
@@ -510,9 +512,9 @@ class LCD_Display {
       tft.drawLine(139, 92.52, 132.41, 88.06, ST77XX_WHITE);
       tft.drawLine(139, 92.52, 132.41, 96, ST77XX_WHITE);
 
-      tft.setCursor(15, 14);
+      // tft.setCursor(15, 14);
       tft.setTextColor(ST77XX_WHITE);
-      tft.print("Y axis");
+      // tft.print("Y axis");
 
       tft.setCursor(53, 20);
       tft.print(sensorName);
@@ -524,17 +526,116 @@ class LCD_Display {
       tft.print(minValue);
 
 
-      tft.setCursor(68, 92);
-      tft.print("X axis");
+      tft.setCursor(35, 92);
+      tft.print("Press > to save Data");
      
       tft.drawLine(25, 85.5 , 45, 85.5 - mappedSensorValues[0], ST77XX_WHITE);
       tft.drawLine(45 , 85.5 - mappedSensorValues[0], 65, 85.5 - mappedSensorValues[1], ST77XX_WHITE);
       tft.drawLine(65, 85.5 - mappedSensorValues[1], 85, 85.5 - mappedSensorValues[2], ST77XX_WHITE);
       tft.drawLine(85, 85.5 - mappedSensorValues[2], 105, 85.5 - mappedSensorValues[3], ST77XX_WHITE);
       tft.drawLine(105 , 85.5 - mappedSensorValues[3], 125, 85.5 - mappedSensorValues[4], ST77XX_WHITE);
+      
+      /*
+      
+    */
+
+
+
+
+
 
       
+      /*
+      
+      
+      
+      */
+      
       fillRectNeeded = false;
+    }
+
+    void startUp(){
+      tft.setCursor(52, 82);
+      tft.setTextColor(ST77XX_WHITE);
+      tft.print("Data Logger");
+
+      tft.fillRect(56, 38, 41, 31, ST77XX_WHITE);
+      tft.fillRect(57, 39, 39, 22, ST77XX_BLACK);
+      tft.fillRect(92, 42, 8, 6, ST77XX_BLACK);
+
+      tft.drawLine(56.65, 56.65, 62.65, 50.65, ST77XX_WHITE);
+      tft.drawLine(56.65, 56.65, 62.65, 50.65, ST77XX_BLACK);
+      tft.fillCircle(64, 49, 3, ST77XX_WHITE);
+      tft.fillCircle(64, 49, 3, ST77XX_BLACK);
+
+      tft.drawLine(66, 50.5, 71.5, 55.5, ST77XX_WHITE);
+      tft.drawLine(66, 50.5, 71.5, 55.5, ST77XX_BLACK);
+      tft.fillCircle(73, 56, 3, ST77XX_WHITE);
+      tft.fillCircle(73, 56, 3, ST77XX_BLACK);
+
+      tft.drawLine(74.5, 53.5, 78.5, 48, ST77XX_WHITE);
+      tft.drawLine(74.5, 53.5, 78.5, 48, ST77XX_BLACK);
+      tft.fillCircle(79, 47, 3, ST77XX_WHITE);
+      tft.fillCircle(79, 47, 3, ST77XX_BLACK);
+
+      tft.drawLine(80.5, 48, 89, 56, ST77XX_WHITE);
+      tft.drawLine(80.5, 48, 89, 56, ST77XX_BLACK);
+      tft.fillCircle(89, 56, 3, ST77XX_WHITE);
+      tft.fillCircle(89, 56, 3, ST77XX_BLACK);
+
+      tft.drawLine(90.5, 55, 103  , 40.5 , ST77XX_WHITE);
+      tft.drawLine(90.5, 55, 103  , 40.5 , ST77XX_BLACK);
+
+      tft.drawLine(103, 40.5, 99, 40.5, ST77XX_WHITE);
+      tft.drawLine(103, 40.5, 103.5, 44, ST77XX_WHITE);
+
+      tft.drawLine(103, 40.5, 99, 40.5, ST77XX_BLACK);
+      tft.drawLine(103, 40.5, 103.5, 44, ST77XX_BLACK);
+
+
+      
+
+
+      tft.fillRect(56, 38, 41, 31, ST77XX_WHITE);
+      tft.fillRect(57, 39, 39, 22, ST77XX_BLACK);
+      tft.fillRect(92, 42, 8, 6, ST77XX_BLACK);
+
+      tft.drawLine(56.65, 56.65, 62.65, 50.65, ST77XX_WHITE);
+      tft.fillCircle(64, 49, 3, ST77XX_WHITE);
+
+
+      tft.drawLine(66, 50.5, 71.5, 55.5, ST77XX_WHITE);
+      tft.fillCircle(73, 56, 3, ST77XX_WHITE);
+
+
+      tft.drawLine(74.5, 53.5, 78.5, 48, ST77XX_WHITE);
+      tft.fillCircle(79, 47, 3, ST77XX_WHITE);
+
+
+      tft.drawLine(80.5, 48, 89, 56, ST77XX_WHITE);
+      tft.fillCircle(89, 56, 3, ST77XX_WHITE);
+
+
+      tft.drawLine(90.5, 55, 103  , 40.5 , ST77XX_WHITE);
+
+      tft.drawLine(103, 40.5, 99, 40.5, ST77XX_WHITE);
+      tft.drawLine(103, 40.5, 103.5, 44, ST77XX_WHITE);
+
+
+
+      
+      tft.fillRect(72, 71, 9, 3, ST77XX_WHITE);
+      tft.fillRect(67, 74, 19, 4, ST77XX_WHITE);
+    }
+
+    void savingSimbol(){
+      tft.setCursor(92, 1);
+      tft.setTextColor(ST77XX_WHITE);
+      tft.print("(S)");
+
+      tft.setCursor(92, 1);
+      tft.setTextColor(ST77XX_BLACK);
+      tft.print("(S)");
     }
 
 
@@ -542,7 +643,7 @@ class LCD_Display {
       if(millis() - last_interrupt_time > delayTime && anyButtonClick){
         
         if (buttonClicks[0]) {
-          pageNum = (pageNum + 1) % 2;
+          pageNum = (pageNum + 1) % 3;
           buttonClicks[0] = false;
           fillRectNeeded = true;
         }
@@ -558,7 +659,7 @@ class LCD_Display {
         }
 
         if (buttonClicks[3]) {
-          pageNum = (pageNum - 1 + 2) % 2;
+          pageNum = (pageNum - 1 + 2) % 3;
           buttonClicks[3] = false;
           fillRectNeeded = true;
         }
@@ -568,12 +669,14 @@ class LCD_Display {
       }
 
 
-      if(pageNum == 0){
-        mainMenu();
-        //Serial.println("Working");
-      } else if (pageNum == 1){
-        showGraph();
-      }
+      // if(pageNum == 0){
+      //   mainMenu();
+      //   //Serial.println("Working");
+      // } else if (pageNum == 1){
+      //   showGraph();
+      // }else if(pageNum == 2){
+
+      // }
       //Serial.print("PageNO : ");Serial.println(pageNum);
       
     }
@@ -620,7 +723,13 @@ class Data_Logger{
       }
 
       file.close();
+      display.init();
+      display.startUp();
       display.setLayOut();
+      
+      /*
+      
+      */
       
     }
 
@@ -634,6 +743,7 @@ class Data_Logger{
         // Both buttons are pressed
         if (prevButton1State == HIGH || prevButton2State == HIGH) {
           // Toggle the display state
+          // I can try to do it here
           displayState ^= true;
         }
       }
@@ -671,11 +781,19 @@ class Data_Logger{
       
 
       if (!displayState) return;
-      if(display.pageNum == 1){
+      if(display.pageNum == 0){
+        display.mainMenu();
+        //Serial.println("Working");
+      }
+      else if(display.pageNum == 1){
         for(int i = 0 ; i < 5;i++){
           display.sensorValues[i] = sdi12.getData(display.selectedOption);
         }
+        display.showGraph();
+        
+      }else if (display.pageNum == 2){
         saveData(file,display.sensorValues,display.sensorName,display.rtc.now());
+        display.savingSimbol();
       }
       
       DateTime now = display.rtc.now();
@@ -724,7 +842,7 @@ void setup() {
 
 
 void loop() {
-  
+
   logger.handleLogger();
   
 }
