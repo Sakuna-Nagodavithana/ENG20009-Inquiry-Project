@@ -1,0 +1,6 @@
+#ifndef HARDWARE_INTERRUPT_H
+#define HARDWARE_INTERRUPT_H
+
+void PIOB_Handler();
+
+#endif // HARDWARE_INTERRUPT_H
