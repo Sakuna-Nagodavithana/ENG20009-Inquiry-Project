@@ -14,6 +14,7 @@
 static volatile bool buttonClicks[4] = { false, false, false, false };
 static volatile bool anyButtonClick = false;
 
+
 class SDI_12 {
 private:
   MatchState ms;
@@ -203,8 +204,8 @@ private:
 
 
 public:
-  float sensorValues[5];
-  int mappedSensorValues[5];
+  float sensorValues[6][40];
+  int mappedSensorValues[6][40];
   RTC_DS1307 rtc;
   DateTime now;
   const int buttonPins[4] = { 2, 3, 4, 5 };
@@ -445,17 +446,21 @@ public:
           break;
         }
     }
-
-    tft.drawLine(25, 85.5, 45, 85.5 - mappedSensorValues[0], ST77XX_BLACK);
-    tft.drawLine(45, 85.5 - mappedSensorValues[0], 65, 85.5 - mappedSensorValues[1], ST77XX_BLACK);
-    tft.drawLine(65, 85.5 - mappedSensorValues[1], 85, 85.5 - mappedSensorValues[2], ST77XX_BLACK);
-    tft.drawLine(85, 85.5 - mappedSensorValues[2], 105, 85.5 - mappedSensorValues[3], ST77XX_BLACK);
-    tft.drawLine(105, 85.5 - mappedSensorValues[3], 125, 85.5 - mappedSensorValues[4], ST77XX_BLACK);
-
-    for (int i = 0; i < 5; i++) {
-      mappedSensorValues[i] = map(sensorValues[i], lowerValue, upperValue, 0, 50);
+    
+    // Erase Old displayed Data
+    //tft.drawLine(25, 85.5, 35, 85.5 - mappedSensorValues[selectedOption][0], ST77XX_BLACK);
+    for (int i = 1; i < 40; i++)   {
+        int xOne = ((i - 1) * 3) + 25;
+        int xTwo = (i * 3) + 25;
+        tft.drawLine(xOne, 85.5 - mappedSensorValues[selectedOption][i-1], xTwo, 85.5 - mappedSensorValues[selectedOption][i], ST77XX_BLACK);
+    }
+    
+    // Map new data
+    for (int i = 0; i < 40; i++) {
+      mappedSensorValues[selectedOption][i] = map(sensorValues[selectedOption][i], lowerValue, upperValue, 0, 50);
     }
 
+    // Draw XY axis
     tft.drawLine(21.64, 25, 21.64, 92.52, ST77XX_WHITE);
     tft.drawLine(21.64, 25, 19, 30.46, ST77XX_WHITE);
     tft.drawLine(21.64, 25, 24.27, 30.46, ST77XX_WHITE);
@@ -463,6 +468,7 @@ public:
     tft.drawLine(139, 92.52, 132.41, 88.06, ST77XX_WHITE);
     tft.drawLine(139, 92.52, 132.41, 96, ST77XX_WHITE);
 
+    // Label XY axis
     tft.setTextColor(ST77XX_WHITE);
 
     tft.setCursor(53, 20);
@@ -478,12 +484,14 @@ public:
     tft.setCursor(35, 92);
     tft.print("Press > to save Data");
 
-    tft.drawLine(25, 85.5, 45, 85.5 - mappedSensorValues[0], ST77XX_WHITE);
-    tft.drawLine(45, 85.5 - mappedSensorValues[0], 65, 85.5 - mappedSensorValues[1], ST77XX_WHITE);
-    tft.drawLine(65, 85.5 - mappedSensorValues[1], 85, 85.5 - mappedSensorValues[2], ST77XX_WHITE);
-    tft.drawLine(85, 85.5 - mappedSensorValues[2], 105, 85.5 - mappedSensorValues[3], ST77XX_WHITE);
-    tft.drawLine(105, 85.5 - mappedSensorValues[3], 125, 85.5 - mappedSensorValues[4], ST77XX_WHITE);
-
+    // Draw new displayed data
+    //tft.drawLine(25, 85.5, 35, 85.5 - mappedSensorValues[selectedOption][0], ST77XX_WHITE);
+    for (int i = 1; i < 40; i++)   {
+        int xOne = ((i - 1) * 3) + 25;
+        int xTwo = (i * 3) + 25;
+        tft.drawLine(xOne, 85.5 - mappedSensorValues[selectedOption][i-1], xTwo, 85.5 - mappedSensorValues[selectedOption][i], ST77XX_WHITE);
+    }
+    
     fillRectNeeded = false;
   }
 
@@ -653,8 +661,8 @@ private:
   static constexpr uint8_t SOFT_MISO_PIN = 12;
   static constexpr uint8_t SOFT_MOSI_PIN = 11;
   static constexpr uint8_t SOFT_SCK_PIN = 13;
-  SoftSpiDriver<SOFT_MISO_PIN, SOFT_MOSI_PIN, SOFT_SCK_PIN> softSpi;
-#define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SD_SCK_MHZ(0), &softSpi)
+  #define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SD_SCK_MHZ(0), &softSpi)
+  SoftSpiDriver <SOFT_MISO_PIN, SOFT_MOSI_PIN, SOFT_SCK_PIN> softSpi;
 
   SdFs sd;
   FsFile file;
@@ -719,46 +727,39 @@ public:
     if (!displayState) return;
     display.handleDisplay();
 
+    // Puts data in sensorValues array
     if (display.requedData) {
-      for (int i = 0; i < 5; i++) {
-        display.sensorValues[i] = sdi12.getData(display.selectedOption);
+      for (int i = 0; i < 40; i++) {
+        display.sensorValues[display.selectedOption][i] = display.sensorValues[display.selectedOption][i+1];
       }
+      display.sensorValues[display.selectedOption][39] = sdi12.getData(display.selectedOption);
+        
       display.requedData = false;
     }
 
     if (display.requedSaving) {
-      saveData(file, display.sensorValues, display.sensorName, display.now);
+      saveData(file, display.sensorValues, display.selectedOption, display.now);
       display.requedSaving = false;
     }
   }
 
-  void saveData(FsFile file, float sensorValues[5], char sensorName[50], DateTime now) {
-    file.open("Sensor_Data.txt", O_RDWR);
-    Serial.println("Woring");
+  void saveData(FsFile file, float sensorValues[6][40], int sensorName, DateTime now) {
+    file.open("Machine_Readable_Sensor_Data.txt", O_RDWR);
+    Serial.println("Working");
     //file.rewind();
     file.seekEnd();
-    file.println("-----------------------------------------------------------------------------------------------------------------------------------------------------");
     file.println(sensorName);
-    file.println("-----------------------------------------------------------------------------------------------------------------------------------------------------");
-    for (int i = 0; i < 5; i++) {
-      file.print("Date : ");
-      file.print(now.year());
-      file.print("/");
-      file.print(now.month());
-      file.print("/");
-      file.print(now.day());
-      file.print("  -  ");
-      file.print(now.hour());
-      file.print(":");
-      file.print(now.minute());
-      file.print(":");
-      file.print(now.second());
-      file.print(" | Value : ");
-      file.print(sensorValues[i]);
-      file.print(" | ");
-      file.println();
-    }
-
+    file.print(" ");
+    file.print(now.year());
+    file.print(now.month());
+    file.print(now.day());
+    file.print(" ");
+    file.print(now.hour());
+    file.print(now.minute());
+    file.print(now.second());
+    file.print(" ");
+    file.print(sensorValues[sensorName][39]);
+    file.println();
     file.close();
   }
 };
