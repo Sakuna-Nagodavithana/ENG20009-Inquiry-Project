@@ -10,6 +10,7 @@
 #include "RTClib.h"
 #include "SdFat.h"
 
+BH1750 lightMeter(0x23);
 
 static volatile bool buttonClicks[4] = { false, false, false, false };
 static volatile bool anyButtonClick = false;
@@ -19,7 +20,7 @@ class SDI_12 {
 private:
   MatchState ms;
   Adafruit_BME680 bme;
-  BH1750 lightMeter;
+  
   const int SDI12PIN = 8;
 
   float SEALEVELPRESSURE_HPA = 1013.25;
@@ -41,6 +42,7 @@ private:
   }
 
 public:
+  
   volatile bool measureFlag = false;
   float dataValue[6];
 
@@ -50,7 +52,7 @@ public:
     pinMode(SDI12PIN, OUTPUT);
     writeToSDI12("   ");
     Wire.begin();
-    startTimer(TC1, 0, TC1_IRQn, 1);
+    startTimer(TC1, 0, TC1_IRQn, 2);
   }
 
   void runCommand(char command[]) {
@@ -110,7 +112,7 @@ public:
       if (commandAddress == address && initialize) {
         String value;
         for (int i = 0; i < 6; i++) {
-          if (i != 5) {
+          if (i != 6) {
             value = value + String(dataValue[i]) + String("+");
           }
           else  {
@@ -127,7 +129,7 @@ public:
       int sensorID = command[2] - '0';
 
       if (commandAddress == address && initialize) {
-        startTimer(TC0, 0, TC0_IRQn, 3);
+        startTimer(TC0, 0, TC0_IRQn, 2);
         continusMesurmentSensorID = sensorID;
         Serial.println("Working");
       }
@@ -167,11 +169,11 @@ public:
   }
 
   void handleMeasurement() {
-    getData();
     if (measureFlag) {
+      getData();
       String value;
         for (int i = 0; i < 6; i++) {
-          if (i != 5) {
+          if (i != 6) {
             value = value + String(dataValue[i]) + String("+");
           }
           else  {
@@ -200,8 +202,8 @@ private:
 
 
 public:
-  float sensorValues[5][20];
-  int mappedSensorValues[5][20];
+  float sensorValues[6][20];
+  int mappedSensorValues[6][20];
   RTC_DS1307 rtc;
   DateTime now;
   const int buttonPins[4] = { 2, 3, 4, 5 };
@@ -421,11 +423,11 @@ public:
         }
       case 5:
         {
-          strcpy(sensorName, "Light Sensor (lux) in K ");
+          strcpy(sensorName, "Light Sensor (lux)");
           lowerValue = 0;
-          upperValue = 100000;
+          upperValue = 65535;
           strcpy(minValue, "0");
-          strcpy(maxValue, "100");
+          strcpy(maxValue, "65k");
           break;
         }
     }
@@ -436,6 +438,8 @@ public:
         int xOne = ((i - 1) * 6) + 25;
         int xTwo = (i * 6) + 25;
         tft.drawLine(xOne, 85.5 - mappedSensorValues[selectedOption][i-1], xTwo, 85.5 - mappedSensorValues[selectedOption][i], ST77XX_BLACK);
+        tft.drawCircle(xOne, 85.5 - mappedSensorValues[selectedOption][i-1], 1, ST77XX_BLACK);
+        tft.drawCircle(xTwo, 85.5 - mappedSensorValues[selectedOption][i], 1, ST77XX_BLACK);
     }
     
     // Map new data
@@ -473,6 +477,8 @@ public:
         int xOne = ((i - 1) * 6) + 25;
         int xTwo = (i * 6) + 25;
         tft.drawLine(xOne, 85.5 - mappedSensorValues[selectedOption][i-1], xTwo, 85.5 - mappedSensorValues[selectedOption][i], ST77XX_WHITE);
+        tft.drawCircle(xOne, 85.5 - mappedSensorValues[selectedOption][i-1], 1, ST77XX_RED);
+        tft.drawCircle(xTwo, 85.5 - mappedSensorValues[selectedOption][i], 1, ST77XX_RED);
     }
     
     fillRectNeeded = false;
@@ -574,13 +580,13 @@ public:
       }
 
       if (buttonClicks[1]) {
-        if (pageNum != 0) return;
+        // if (pageNum != 0) return;
         selectedOption = (selectedOption - 1 + 6) % 6;
         buttonClicks[1] = false;
       }
 
       if (buttonClicks[2]) {
-        if (pageNum != 0) return;
+        // if (pageNum != 0) return;
         selectedOption = (selectedOption + 1) % 6;
         buttonClicks[2] = false;
       }
@@ -709,7 +715,7 @@ public:
     displayState ^= false;
 
     // Puts data in sensorValues array
-    for (int j = 0; j < 5; j++) {
+    for (int j = 0; j < 6; j++) {
       for (int i = 0; i < 20; i++) {
         display.sensorValues[j][i] = display.sensorValues[j][i+1];
       }
