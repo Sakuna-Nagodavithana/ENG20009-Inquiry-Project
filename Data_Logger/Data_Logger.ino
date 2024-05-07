@@ -10,15 +10,17 @@
 #include "RTClib.h"
 #include "SdFat.h"
 
+BH1750 lightMeter(0x23);
 
 static volatile bool buttonClicks[4] = { false, false, false, false };
 static volatile bool anyButtonClick = false;
+
 
 class SDI_12 {
 private:
   MatchState ms;
   Adafruit_BME680 bme;
-  BH1750 lightMeter;
+  
   const int SDI12PIN = 8;
 
   float SEALEVELPRESSURE_HPA = 1013.25;
@@ -40,7 +42,9 @@ private:
   }
 
 public:
+  
   volatile bool measureFlag = false;
+  float dataValue[6];
 
   void setUp() {
     Serial.begin(9600);
@@ -48,6 +52,7 @@ public:
     pinMode(SDI12PIN, OUTPUT);
     writeToSDI12("   ");
     Wire.begin();
+    startTimer(TC1, 0, TC1_IRQn, 2);
   }
 
   void runCommand(char command[]) {
@@ -105,7 +110,15 @@ public:
       int sensorID = command[2] - '0';
 
       if (commandAddress == address && initialize) {
-        String value = String(address) + String(" ") + String(getData(sensorID));
+        String value;
+        for (int i = 0; i < 6; i++) {
+          if (i != 6) {
+            value = value + String(dataValue[i]) + String("+");
+          }
+          else  {
+          value = value + String(dataValue[i]);
+          }
+        }
         writeToSDI12(value);
       }
     }
@@ -116,50 +129,27 @@ public:
       int sensorID = command[2] - '0';
 
       if (commandAddress == address && initialize) {
-        startTimer(TC0, 0, TC0_IRQn, 1);
+        startTimer(TC0, 0, TC0_IRQn, 2);
         continusMesurmentSensorID = sensorID;
         Serial.println("Working");
       }
     }
   }
 
-  float getData(int sensorID) {
+  void getData() {
     bme.performReading();
-    float value = 0;
-
-    switch (sensorID) {
-      case 0:
-        {
-          value = bme.temperature;
-          break;
-        }
-      case 1:
-        {
-          value = bme.humidity;
-          break;
-        }
-      case 2:
-        {
-          value = bme.pressure / 100.0;
-        }
-      case 3:
-        {
-          value = bme.gas_resistance / 1000.0;
-          break;
-        }
-      case 4:
-        {
-          value = bme.readAltitude(SEALEVELPRESSURE_HPA);
-          break;
-        }
-      case 5:
-        {
-          value = lightMeter.readLightLevel();
-          break;
-        }
-    }
-
-    return value;
+    float value = bme.temperature;
+    dataValue[0] = value;
+    value = bme.humidity;
+    dataValue[1] = value;
+    value = bme.pressure / 100.0;
+    dataValue[2] = value;
+    value = bme.gas_resistance / 1000.0;
+    dataValue[3] = value;
+    value = bme.readAltitude(SEALEVELPRESSURE_HPA);
+    dataValue[4] = value;
+    value = lightMeter.readLightLevel();
+    dataValue[5] = value;
   }
 
   void writeToSDI12(String data) {
@@ -180,7 +170,16 @@ public:
 
   void handleMeasurement() {
     if (measureFlag) {
-      String value = String(address) + String(" ") + String(getData(continusMesurmentSensorID));
+      getData();
+      String value;
+        for (int i = 0; i < 6; i++) {
+          if (i != 6) {
+            value = value + String(dataValue[i]) + String("+");
+          }
+          else  {
+          value = value + String(dataValue[i]);
+          }
+        }
       writeToSDI12(value);
       Serial.println("Measurement taken and sent.");
       measureFlag = false;
@@ -203,13 +202,12 @@ private:
 
 
 public:
-  float sensorValues[5];
-  int mappedSensorValues[5];
+  float sensorValues[6][20];
+  int mappedSensorValues[6][20];
   RTC_DS1307 rtc;
   DateTime now;
   const int buttonPins[4] = { 2, 3, 4, 5 };
   bool fillRectNeeded = true;
-  bool requedData = false;
   bool requedSaving = false;
 
   unsigned long last_interrupt_time = 0;
@@ -224,9 +222,7 @@ public:
   int upperValue;
   int lowerValue;
 
-  char sensorName[50];
-
-  
+  char sensorName[50];  
 
   void init() {
     for (int pin : buttonPins) {
@@ -248,9 +244,7 @@ public:
 
   void setLayOut() {
 
-
     tft.drawLine(0, 13, 159, 13, ST77XX_WHITE);
-
 
     tft.drawLine(0, 103, 159, 103, ST77XX_WHITE);
 
@@ -259,15 +253,7 @@ public:
     tft.drawLine(11.35, 116.65, 15.35, 120.65, ST77XX_BLACK);
     tft.drawLine(11.65, 116.65, 15.65, 112.65, ST77XX_BLACK);
     tft.drawLine(10.65, 116.65, 15.65, 111.65, ST77XX_BLACK);
-
-
-
-    tft.fillCircle(146, 116, 8, ST77XX_GREEN);
-    tft.drawLine(144.65, 113.35, 148.65, 117.35, ST77XX_BLACK);
-    tft.drawLine(144.65, 112.35, 148.65, 116.35, ST77XX_BLACK);
-    tft.drawLine(148.35, 116.35, 144.35, 120.35, ST77XX_BLACK);
-    tft.drawLine(149.35, 116.35, 144.35, 121.35, ST77XX_BLACK);
-
+    
     tft.fillCircle(58, 116, 8, ST77XX_GREEN);
     tft.fillTriangle(53, 117, 58, 122, 63, 117, ST77XX_BLACK);
     tft.fillTriangle(55, 117, 58, 120, 61, 117, ST77XX_GREEN);
@@ -277,30 +263,25 @@ public:
     tft.fillTriangle(97, 115, 102, 110, 107, 115, ST77XX_BLACK);
     tft.fillTriangle(99, 115, 102, 112, 105, 115, ST77XX_GREEN);
     tft.fillRect(102.75, 114, 1.5, 7, ST77XX_BLACK);
+    
+    tft.fillCircle(146, 116, 8, ST77XX_GREEN); 
+    tft.drawLine(144.65, 113.35, 148.65, 117.35, ST77XX_BLACK);
+    tft.drawLine(144.65, 112.35, 148.65, 116.35, ST77XX_BLACK);
+    tft.drawLine(148.35, 116.35, 144.35, 120.35, ST77XX_BLACK);
+    tft.drawLine(149.35, 116.35, 144.35, 121.35, ST77XX_BLACK);
   }
 
-  void displayTime(DateTime now) {
+  void displayTime(DateTime now, uint16_t color) {
     tft.setTextWrap(false);
     tft.setCursor(3, 3);
     tft.setTextSize(1);
 
-    tft.setTextColor(ST77XX_WHITE);
+    tft.setTextColor(color);
     tft.print(now.year(), DEC);
     tft.print('/');
     tft.print(now.month(), DEC);
     tft.print('/');
     tft.print(now.day(), DEC);
-
-    tft.setCursor(115, 3);
-    tft.print(now.hour(), DEC);
-    tft.print(':');
-    tft.print(now.minute(), DEC);
-    tft.print(':');
-    tft.print(now.second(), DEC);
-    tft.println();
-
-    tft.setTextColor(ST77XX_BLACK);
-
     tft.setCursor(115, 3);
     tft.print(now.hour(), DEC);
     tft.print(':');
@@ -315,47 +296,52 @@ public:
     if (fillRectNeeded) {
       tft.fillRect(0, 15, 160, 85, ST77XX_BLACK);
     }
-    tft.setTextColor(ST77XX_BLUE);
+    tft.setTextColor(ST77XX_RED);
     switch (selectedOption) {
       case 0:
         {
+          //tft.fillRect (15, 22, 110, 9, ST77XX_CYAN);
           tft.setCursor(15, 22);
           tft.println("> Temperature");
           break;
         }
       case 1:
         {
+          //tft.fillRect (15, 34, 110, 9, ST77XX_CYAN);
           tft.setCursor(15, 34);
           tft.println("> Humidity");
           break;
         }
       case 2:
         {
+          //tft.fillRect (15, 46, 110, 9, ST77XX_CYAN);
           tft.setCursor(15, 46);
           tft.println("> Pressure");
           break;
         }
       case 3:
         {
+          //tft.fillRect (15, 58, 110, 9, ST77XX_CYAN);
           tft.setCursor(15, 58);
           tft.println("> Gas Resistance");
           break;
         }
       case 4:
         {
+          //tft.fillRect (15, 70, 110, 9, ST77XX_CYAN);
           tft.setCursor(15, 70);
           tft.println("> Altutude");
           break;
         }
       case 5:
         {
+          //tft.fillRect (15, 82, 110, 9, ST77XX_CYAN);
           tft.setCursor(15, 82);
           tft.println("> Light Level");
           break;
         }
     }
-
-
+    
     tft.setTextColor(ST77XX_WHITE);
     tft.setCursor(15, 22);
     tft.println("> Temperature");
@@ -437,25 +423,31 @@ public:
         }
       case 5:
         {
-          strcpy(sensorName, "Light Sensor (lux) in K ");
+          strcpy(sensorName, "Light Sensor (lux)");
           lowerValue = 0;
-          upperValue = 100000;
+          upperValue = 65535;
           strcpy(minValue, "0");
-          strcpy(maxValue, "100");
+          strcpy(maxValue, "65k");
           break;
         }
     }
-
-    tft.drawLine(25, 85.5, 45, 85.5 - mappedSensorValues[0], ST77XX_BLACK);
-    tft.drawLine(45, 85.5 - mappedSensorValues[0], 65, 85.5 - mappedSensorValues[1], ST77XX_BLACK);
-    tft.drawLine(65, 85.5 - mappedSensorValues[1], 85, 85.5 - mappedSensorValues[2], ST77XX_BLACK);
-    tft.drawLine(85, 85.5 - mappedSensorValues[2], 105, 85.5 - mappedSensorValues[3], ST77XX_BLACK);
-    tft.drawLine(105, 85.5 - mappedSensorValues[3], 125, 85.5 - mappedSensorValues[4], ST77XX_BLACK);
-
-    for (int i = 0; i < 5; i++) {
-      mappedSensorValues[i] = map(sensorValues[i], lowerValue, upperValue, 0, 50);
+    
+    // Erase Old displayed Data
+    //tft.drawLine(25, 85.5, 35, 85.5 - mappedSensorValues[selectedOption][0], ST77XX_BLACK);
+    for (int i = 1; i < 20; i++)   {
+        int xOne = ((i - 1) * 6) + 25;
+        int xTwo = (i * 6) + 25;
+        tft.drawLine(xOne, 85.5 - mappedSensorValues[selectedOption][i-1], xTwo, 85.5 - mappedSensorValues[selectedOption][i], ST77XX_BLACK);
+        tft.drawCircle(xOne, 85.5 - mappedSensorValues[selectedOption][i-1], 1, ST77XX_BLACK);
+        tft.drawCircle(xTwo, 85.5 - mappedSensorValues[selectedOption][i], 1, ST77XX_BLACK);
+    }
+    
+    // Map new data
+    for (int i = 0; i < 20; i++) {
+      mappedSensorValues[selectedOption][i] = map(sensorValues[selectedOption][i], lowerValue, upperValue, 0, 50);
     }
 
+    // Draw XY axis
     tft.drawLine(21.64, 25, 21.64, 92.52, ST77XX_WHITE);
     tft.drawLine(21.64, 25, 19, 30.46, ST77XX_WHITE);
     tft.drawLine(21.64, 25, 24.27, 30.46, ST77XX_WHITE);
@@ -463,6 +455,7 @@ public:
     tft.drawLine(139, 92.52, 132.41, 88.06, ST77XX_WHITE);
     tft.drawLine(139, 92.52, 132.41, 96, ST77XX_WHITE);
 
+    // Label XY axis
     tft.setTextColor(ST77XX_WHITE);
 
     tft.setCursor(53, 20);
@@ -478,12 +471,16 @@ public:
     tft.setCursor(35, 92);
     tft.print("Press > to save Data");
 
-    tft.drawLine(25, 85.5, 45, 85.5 - mappedSensorValues[0], ST77XX_WHITE);
-    tft.drawLine(45, 85.5 - mappedSensorValues[0], 65, 85.5 - mappedSensorValues[1], ST77XX_WHITE);
-    tft.drawLine(65, 85.5 - mappedSensorValues[1], 85, 85.5 - mappedSensorValues[2], ST77XX_WHITE);
-    tft.drawLine(85, 85.5 - mappedSensorValues[2], 105, 85.5 - mappedSensorValues[3], ST77XX_WHITE);
-    tft.drawLine(105, 85.5 - mappedSensorValues[3], 125, 85.5 - mappedSensorValues[4], ST77XX_WHITE);
-
+    // Draw new displayed data
+    //tft.drawLine(25, 85.5, 35, 85.5 - mappedSensorValues[selectedOption][0], ST77XX_WHITE);
+    for (int i = 1; i < 20; i++)   {
+        int xOne = ((i - 1) * 6) + 25;
+        int xTwo = (i * 6) + 25;
+        tft.drawLine(xOne, 85.5 - mappedSensorValues[selectedOption][i-1], xTwo, 85.5 - mappedSensorValues[selectedOption][i], ST77XX_WHITE);
+        tft.drawCircle(xOne, 85.5 - mappedSensorValues[selectedOption][i-1], 1, ST77XX_RED);
+        tft.drawCircle(xTwo, 85.5 - mappedSensorValues[selectedOption][i], 1, ST77XX_RED);
+    }
+    
     fillRectNeeded = false;
   }
 
@@ -554,9 +551,6 @@ public:
     tft.drawLine(103, 40.5, 99, 40.5, ST77XX_WHITE);
     tft.drawLine(103, 40.5, 103.5, 44, ST77XX_WHITE);
 
-
-
-
     tft.fillRect(72, 71, 9, 3, ST77XX_WHITE);
     tft.fillRect(67, 74, 19, 4, ST77XX_WHITE);
   }
@@ -574,11 +568,11 @@ public:
 
   void handleDisplay() {
 
+    displayTime(now, ST77XX_BLACK);
     now = rtc.now();
-    displayTime(now);
+    displayTime(now, ST77XX_WHITE);
 
     if (millis() - last_interrupt_time > delayTime && anyButtonClick) {
-
       if (buttonClicks[0]) {
         pageNum = (pageNum + 1) % 3;
         buttonClicks[0] = false;
@@ -586,11 +580,13 @@ public:
       }
 
       if (buttonClicks[1]) {
+        // if (pageNum != 0) return;
         selectedOption = (selectedOption - 1 + 6) % 6;
         buttonClicks[1] = false;
       }
 
       if (buttonClicks[2]) {
+        // if (pageNum != 0) return;
         selectedOption = (selectedOption + 1) % 6;
         buttonClicks[2] = false;
       }
@@ -612,10 +608,8 @@ public:
     if (pageNum == 0) {
       mainMenu();
     } else if (pageNum == 1) {
-      requedData = true;
       showGraph();
     } else if (pageNum == 2) {
-      requedData = true;
       requedSaving = true;
       showGraph();
       savingSimbol();
@@ -653,19 +647,19 @@ private:
   static constexpr uint8_t SOFT_MISO_PIN = 12;
   static constexpr uint8_t SOFT_MOSI_PIN = 11;
   static constexpr uint8_t SOFT_SCK_PIN = 13;
-  SoftSpiDriver<SOFT_MISO_PIN, SOFT_MOSI_PIN, SOFT_SCK_PIN> softSpi;
-#define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SD_SCK_MHZ(0), &softSpi)
+  #define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SD_SCK_MHZ(0), &softSpi)
+  SoftSpiDriver <SOFT_MISO_PIN, SOFT_MOSI_PIN, SOFT_SCK_PIN> softSpi;
 
   SdFs sd;
   FsFile file;
 
-  LCD_Display display;
-  bool displayState = false;
+  LCD_Display display;  
   int button1State = 0;
   int button2State = 0;
   int prevButton1State = 0;
   int prevButton2State = 0;
 public:
+  bool displayState = false;
   SDI_12 sdi12;
 
   void init() {
@@ -674,7 +668,7 @@ public:
       Serial.println("SD card initialization failed!");
       return;
     }
-    if (!file.open("Sensor_Data.txt", O_RDWR | O_CREAT)) {
+    if (!file.open("MR_Sensor_Data.txt", O_RDWR | O_CREAT)) {
       Serial.println(F("open failed"));
     }
 
@@ -718,47 +712,49 @@ public:
 
     if (!displayState) return;
     display.handleDisplay();
+    displayState ^= false;
 
-    if (display.requedData) {
-      for (int i = 0; i < 5; i++) {
-        display.sensorValues[i] = sdi12.getData(display.selectedOption);
+    // Puts data in sensorValues array
+    for (int j = 0; j < 6; j++) {
+      for (int i = 0; i < 20; i++) {
+        display.sensorValues[j][i] = display.sensorValues[j][i+1];
       }
-      display.requedData = false;
+      display.sensorValues[j][19] = sdi12.dataValue[j];
     }
 
     if (display.requedSaving) {
-      saveData(file, display.sensorValues, display.sensorName, display.now);
+      saveData(file, sdi12.dataValue, display.now);
       display.requedSaving = false;
     }
   }
 
-  void saveData(FsFile file, float sensorValues[5], char sensorName[50], DateTime now) {
-    file.open("Sensor_Data.txt", O_RDWR);
-    Serial.println("Woring");
+  void saveData(FsFile file, float dataValue[6], DateTime now) {
+    file.open("MR_Sensor_Data.txt", O_RDWR);
+    Serial.println("Working");
     //file.rewind();
     file.seekEnd();
-    file.println("-----------------------------------------------------------------------------------------------------------------------------------------------------");
-    file.println(sensorName);
-    file.println("-----------------------------------------------------------------------------------------------------------------------------------------------------");
-    for (int i = 0; i < 5; i++) {
-      file.print("Date : ");
-      file.print(now.year());
-      file.print("/");
-      file.print(now.month());
-      file.print("/");
-      file.print(now.day());
-      file.print("  -  ");
-      file.print(now.hour());
-      file.print(":");
-      file.print(now.minute());
-      file.print(":");
-      file.print(now.second());
-      file.print(" | Value : ");
-      file.print(sensorValues[i]);
-      file.print(" | ");
-      file.println();
-    }
-
+    file.print(now.year());
+    file.print("/");
+    file.print(now.month());
+    file.print("/");
+    file.print(now.day());
+    file.print(" ");
+    file.print(now.hour());
+    file.print(":");
+    file.print(now.minute());
+    file.print(":");
+    file.print(now.second());
+    file.print(" ");
+    for (int i = 0; i < 6; i++) {
+          if (i != 5) {
+            file.print(dataValue[i]);
+            file.print(" ");
+          }
+          else  {
+          file.print(dataValue[i]);
+          }
+        } 
+    file.println();
     file.close();
   }
 };
@@ -767,6 +763,7 @@ Data_Logger logger;
 
 void setup() {
   logger.init();
+  
 }
 
 
@@ -778,4 +775,8 @@ void loop() {
 void TC0_Handler() {
   TC_GetStatus(TC0, 0);
   logger.sdi12.measureFlag = true;
+}
+
+void TC1_Handler() {
+  logger.displayState ^= true;
 }
