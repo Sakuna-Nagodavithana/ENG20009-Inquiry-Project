@@ -10,17 +10,16 @@
 #include "RTClib.h"
 #include "SdFat.h"
 
-BH1750 lightMeter(0x23);
-
 static volatile bool buttonClicks[4] = { false, false, false, false };
 static volatile bool anyButtonClick = false;
 
+BH1750 lightMeter(0x23);
 
 class SDI_12 {
 private:
   MatchState ms;
   Adafruit_BME680 bme;
-  
+
   const int SDI12PIN = 8;
 
   float SEALEVELPRESSURE_HPA = 1013.25;
@@ -42,7 +41,8 @@ private:
   }
 
 public:
-  
+
+
   volatile bool measureFlag = false;
   float dataValue[6];
 
@@ -52,7 +52,7 @@ public:
     pinMode(SDI12PIN, OUTPUT);
     writeToSDI12("   ");
     Wire.begin();
-    startTimer(TC1, 0, TC1_IRQn, 2);
+    startTimer(TC1, 0, TC1_IRQn, 1);
   }
 
   void runCommand(char command[]) {
@@ -108,17 +108,9 @@ public:
     if (ms.Match("^[0-9]+D[0-9]!") == REGEXP_MATCHED) {
       int commandAddress = command[0] - '0';
       int sensorID = command[2] - '0';
-
+      getData();
       if (commandAddress == address && initialize) {
-        String value;
-        for (int i = 0; i < 6; i++) {
-          if (i != 6) {
-            value = value + String(dataValue[i]) + String("+");
-          }
-          else  {
-          value = value + String(dataValue[i]);
-          }
-        }
+        String value = String(address) + String(" ") + String(dataValue[sensorID]);
         writeToSDI12(value);
       }
     }
@@ -172,14 +164,13 @@ public:
     if (measureFlag) {
       getData();
       String value;
-        for (int i = 0; i < 6; i++) {
-          if (i != 6) {
-            value = value + String(dataValue[i]) + String("+");
-          }
-          else  {
+      for (int i = 0; i < 6; i++) {
+        if (i != 5) {
+          value = value + String(dataValue[i]) + String("+");
+        } else {
           value = value + String(dataValue[i]);
-          }
         }
+      }
       writeToSDI12(value);
       Serial.println("Measurement taken and sent.");
       measureFlag = false;
@@ -209,6 +200,7 @@ public:
   const int buttonPins[4] = { 2, 3, 4, 5 };
   bool fillRectNeeded = true;
   bool requedSaving = false;
+  bool saveToSD = false;
 
   unsigned long last_interrupt_time = 0;
   unsigned long delayTime = 500;
@@ -222,7 +214,7 @@ public:
   int upperValue;
   int lowerValue;
 
-  char sensorName[50];  
+  char sensorName[50];
 
   void init() {
     for (int pin : buttonPins) {
@@ -253,7 +245,7 @@ public:
     tft.drawLine(11.35, 116.65, 15.35, 120.65, ST77XX_BLACK);
     tft.drawLine(11.65, 116.65, 15.65, 112.65, ST77XX_BLACK);
     tft.drawLine(10.65, 116.65, 15.65, 111.65, ST77XX_BLACK);
-    
+
     tft.fillCircle(58, 116, 8, ST77XX_GREEN);
     tft.fillTriangle(53, 117, 58, 122, 63, 117, ST77XX_BLACK);
     tft.fillTriangle(55, 117, 58, 120, 61, 117, ST77XX_GREEN);
@@ -263,8 +255,8 @@ public:
     tft.fillTriangle(97, 115, 102, 110, 107, 115, ST77XX_BLACK);
     tft.fillTriangle(99, 115, 102, 112, 105, 115, ST77XX_GREEN);
     tft.fillRect(102.75, 114, 1.5, 7, ST77XX_BLACK);
-    
-    tft.fillCircle(146, 116, 8, ST77XX_GREEN); 
+
+    tft.fillCircle(146, 116, 8, ST77XX_GREEN);
     tft.drawLine(144.65, 113.35, 148.65, 117.35, ST77XX_BLACK);
     tft.drawLine(144.65, 112.35, 148.65, 116.35, ST77XX_BLACK);
     tft.drawLine(148.35, 116.35, 144.35, 120.35, ST77XX_BLACK);
@@ -341,7 +333,7 @@ public:
           break;
         }
     }
-    
+
     tft.setTextColor(ST77XX_WHITE);
     tft.setCursor(15, 22);
     tft.println("> Temperature");
@@ -431,17 +423,16 @@ public:
           break;
         }
     }
-    
+
     // Erase Old displayed Data
-    //tft.drawLine(25, 85.5, 35, 85.5 - mappedSensorValues[selectedOption][0], ST77XX_BLACK);
-    for (int i = 1; i < 20; i++)   {
-        int xOne = ((i - 1) * 6) + 25;
-        int xTwo = (i * 6) + 25;
-        tft.drawLine(xOne, 85.5 - mappedSensorValues[selectedOption][i-1], xTwo, 85.5 - mappedSensorValues[selectedOption][i], ST77XX_BLACK);
-        tft.drawCircle(xOne, 85.5 - mappedSensorValues[selectedOption][i-1], 1, ST77XX_BLACK);
-        tft.drawCircle(xTwo, 85.5 - mappedSensorValues[selectedOption][i], 1, ST77XX_BLACK);
+    for (int i = 1; i < 20; i++) {
+      int xOne = ((i - 1) * 6) + 25;
+      int xTwo = (i * 6) + 25;
+      tft.drawLine(xOne, 85.5 - mappedSensorValues[selectedOption][i - 1], xTwo, 85.5 - mappedSensorValues[selectedOption][i], ST77XX_BLACK);
+      tft.fillCircle(xOne, 85.5 - mappedSensorValues[selectedOption][i - 1], 1, ST77XX_BLACK);
+      tft.fillCircle(xTwo, 85.5 - mappedSensorValues[selectedOption][i], 1, ST77XX_BLACK);
     }
-    
+
     // Map new data
     for (int i = 0; i < 20; i++) {
       mappedSensorValues[selectedOption][i] = map(sensorValues[selectedOption][i], lowerValue, upperValue, 0, 50);
@@ -472,15 +463,14 @@ public:
     tft.print("Press > to save Data");
 
     // Draw new displayed data
-    //tft.drawLine(25, 85.5, 35, 85.5 - mappedSensorValues[selectedOption][0], ST77XX_WHITE);
-    for (int i = 1; i < 20; i++)   {
-        int xOne = ((i - 1) * 6) + 25;
-        int xTwo = (i * 6) + 25;
-        tft.drawLine(xOne, 85.5 - mappedSensorValues[selectedOption][i-1], xTwo, 85.5 - mappedSensorValues[selectedOption][i], ST77XX_WHITE);
-        tft.drawCircle(xOne, 85.5 - mappedSensorValues[selectedOption][i-1], 1, ST77XX_RED);
-        tft.drawCircle(xTwo, 85.5 - mappedSensorValues[selectedOption][i], 1, ST77XX_RED);
+    for (int i = 1; i < 20; i++) {
+      int xOne = ((i - 1) * 6) + 25;
+      int xTwo = (i * 6) + 25;
+      tft.drawLine(xOne, 85.5 - mappedSensorValues[selectedOption][i - 1], xTwo, 85.5 - mappedSensorValues[selectedOption][i], ST77XX_WHITE);
+      tft.fillCircle(xOne, 85.5 - mappedSensorValues[selectedOption][i - 1], 1, ST77XX_RED);
+      tft.fillCircle(xTwo, 85.5 - mappedSensorValues[selectedOption][i], 1, ST77XX_RED);
     }
-    
+
     fillRectNeeded = false;
   }
 
@@ -555,14 +545,14 @@ public:
     tft.fillRect(67, 74, 19, 4, ST77XX_WHITE);
   }
 
-  void savingSimbol() {
-    tft.setCursor(92, 1);
-    tft.setTextColor(ST77XX_WHITE);
-    tft.print("(S)");
-
+  void savingSymbol() {
     tft.setCursor(92, 1);
     tft.setTextColor(ST77XX_BLACK);
     tft.print("(S)");
+
+    tft.setCursor(92, 1);
+    tft.setTextColor(ST77XX_WHITE);
+    tft.print("(S)");   
   }
 
 
@@ -573,35 +563,35 @@ public:
     displayTime(now, ST77XX_WHITE);
 
     if (millis() - last_interrupt_time > delayTime && anyButtonClick) {
+      last_interrupt_time = millis();
+      anyButtonClick = false;
       if (buttonClicks[0]) {
-        pageNum = (pageNum + 1) % 3;
         buttonClicks[0] = false;
+        if (pageNum == 1 && saveToSD == true) return;
+        pageNum = (pageNum + 1) % 3;
+        if (pageNum == 2) return;
         fillRectNeeded = true;
       }
 
       if (buttonClicks[1]) {
-        // if (pageNum != 0) return;
-        selectedOption = (selectedOption - 1 + 6) % 6;
         buttonClicks[1] = false;
+        if (pageNum != 0) return;
+        selectedOption = (selectedOption - 1 + 6) % 6;
       }
 
       if (buttonClicks[2]) {
-        // if (pageNum != 0) return;
-        selectedOption = (selectedOption + 1) % 6;
         buttonClicks[2] = false;
+        if (pageNum != 0) return;
+        selectedOption = (selectedOption + 1) % 6;
       }
 
       if (buttonClicks[3]) {
+        buttonClicks[3] = false;
         if (pageNum != 0) {
           pageNum = (pageNum - 1 + 3) % 3;
-          buttonClicks[3] = false;
           fillRectNeeded = true;
-          Serial.print("Page Nu,");
-          Serial.println(pageNum);
         }
       }
-      last_interrupt_time = millis();
-      anyButtonClick = false;
     }
 
 
@@ -610,9 +600,10 @@ public:
     } else if (pageNum == 1) {
       showGraph();
     } else if (pageNum == 2) {
-      requedSaving = true;
+      saveToSD = true;
       showGraph();
-      savingSimbol();
+      savingSymbol();
+      pageNum = 1;
     }
   }
 
@@ -637,7 +628,6 @@ public:
     buttonClicks[3] = true;
     anyButtonClick = true;
   }
-
 };
 
 
@@ -647,22 +637,27 @@ private:
   static constexpr uint8_t SOFT_MISO_PIN = 12;
   static constexpr uint8_t SOFT_MOSI_PIN = 11;
   static constexpr uint8_t SOFT_SCK_PIN = 13;
-  #define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SD_SCK_MHZ(0), &softSpi)
-  SoftSpiDriver <SOFT_MISO_PIN, SOFT_MOSI_PIN, SOFT_SCK_PIN> softSpi;
+
+#define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SD_SCK_MHZ(0), &softSpi)
+  SoftSpiDriver<SOFT_MISO_PIN, SOFT_MOSI_PIN, SOFT_SCK_PIN> softSpi;
 
   SdFs sd;
   FsFile file;
 
-  LCD_Display display;  
   int button1State = 0;
   int button2State = 0;
   int prevButton1State = 0;
   int prevButton2State = 0;
 public:
+
+  LCD_Display display;
+  volatile bool HighValues[6] = { false, false, false, false, false, false };
+  const int LEDPINS[6] = { 48, 49, 50, 51, 52, 53 };
   bool displayState = false;
   SDI_12 sdi12;
 
   void init() {
+    for (int pin : LEDPINS) { pinMode(pin, OUTPUT); }
     sdi12.setUp();
     if (!sd.begin(SD_CONFIG)) {
       Serial.println("SD card initialization failed!");
@@ -678,9 +673,9 @@ public:
     display.setLayOut();
   }
 
-  void displayStat() {
+  void displayStart() {
     button1State = digitalRead(display.buttonPins[0]);
-    button2State = digitalRead(display.buttonPins[1]);
+    button2State = digitalRead(display.buttonPins[3]);
 
     if (button1State == LOW && button2State == LOW) {
       if (prevButton1State == HIGH || prevButton2State == HIGH) {
@@ -707,8 +702,7 @@ public:
     }
     sdi12.handleMeasurement();
 
-    displayStat();
-
+    displayStart();
 
     if (!displayState) return;
     display.handleDisplay();
@@ -717,7 +711,7 @@ public:
     // Puts data in sensorValues array
     for (int j = 0; j < 6; j++) {
       for (int i = 0; i < 20; i++) {
-        display.sensorValues[j][i] = display.sensorValues[j][i+1];
+        display.sensorValues[j][i] = display.sensorValues[j][i + 1];
       }
       display.sensorValues[j][19] = sdi12.dataValue[j];
     }
@@ -725,6 +719,42 @@ public:
     if (display.requedSaving) {
       saveData(file, sdi12.dataValue, display.now);
       display.requedSaving = false;
+    }
+
+    if (HighValues[0] == true) {
+      digitalWrite(LEDPINS[0], HIGH);
+    } else {
+      digitalWrite(LEDPINS[0], LOW);
+    }
+
+    if (HighValues[1] == true) {
+      digitalWrite(LEDPINS[1], HIGH);
+    } else {
+      digitalWrite(LEDPINS[1], LOW);
+    }
+
+    if (HighValues[2] == true) {
+      digitalWrite(LEDPINS[2], HIGH);
+    } else {
+      digitalWrite(LEDPINS[2], LOW);
+    }
+
+    if (HighValues[3] == true) {
+      digitalWrite(LEDPINS[3], HIGH);
+    } else {
+      digitalWrite(LEDPINS[3], LOW);
+    }
+
+    if (HighValues[4] == true) {
+      digitalWrite(LEDPINS[4], HIGH);
+    } else {
+      digitalWrite(LEDPINS[4], LOW);
+    }
+
+    if (HighValues[5] == true) {
+      digitalWrite(LEDPINS[5], HIGH);
+    } else {
+      digitalWrite(LEDPINS[5], LOW);
     }
   }
 
@@ -746,14 +776,13 @@ public:
     file.print(now.second());
     file.print(" ");
     for (int i = 0; i < 6; i++) {
-          if (i != 5) {
-            file.print(dataValue[i]);
-            file.print(" ");
-          }
-          else  {
-          file.print(dataValue[i]);
-          }
-        } 
+      if (i != 5) {
+        file.print(dataValue[i]);
+        file.print(" ");
+      } else {
+        file.print(dataValue[i]);
+      }
+    }
     file.println();
     file.close();
   }
@@ -763,20 +792,55 @@ Data_Logger logger;
 
 void setup() {
   logger.init();
-  
 }
 
 
 void loop() {
   logger.handleLogger();
-}
+  if (logger.display.sensorValues[0][19] > 30) {
+    logger.HighValues[0] = true;
+  } else {
+    logger.HighValues[0] = false;
+  }
 
+  if (logger.display.sensorValues[1][19] > 70) {
+    logger.HighValues[1] = true;
+  } else {
+    logger.HighValues[1] = false;
+  }
+
+  if (logger.display.sensorValues[2][19] > 700) {
+    logger.HighValues[2] = true;
+  } else {
+    logger.HighValues[2] = false;
+  }
+
+  if (logger.display.sensorValues[3][19] > 700) {
+    logger.HighValues[3] = true;
+  } else {
+    logger.HighValues[3] = false;
+  }
+
+  if (logger.display.sensorValues[4][19] > 8000) {
+    logger.HighValues[4] = true;
+  } else {
+    logger.HighValues[4] = false;
+  }
+
+  if (logger.display.sensorValues[5][19] > 50000) {
+    logger.HighValues[5] = true;
+  } else {
+    logger.HighValues[5] = false;
+  }
+}
 
 void TC0_Handler() {
   TC_GetStatus(TC0, 0);
   logger.sdi12.measureFlag = true;
+  if (logger.display.saveToSD) logger.display.requedSaving = true;
 }
 
 void TC1_Handler() {
+  TC_GetStatus(TC1, 1);
   logger.displayState ^= true;
 }
