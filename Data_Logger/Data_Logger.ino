@@ -42,7 +42,6 @@ private:
 
 public:
 
-
   volatile bool measureFlag = false;
   float dataValue[6];
 
@@ -52,7 +51,7 @@ public:
     pinMode(SDI12PIN, OUTPUT);
     writeToSDI12("   ");
     Wire.begin();
-    startTimer(TC1, 0, TC1_IRQn, 1);
+    startTimer(TC1, 0, TC3_IRQn, 1);
   }
 
   void runCommand(char command[]) {
@@ -161,20 +160,17 @@ public:
   }
 
   void handleMeasurement() {
-    if (measureFlag) {
-      getData();
-      String value;
-      for (int i = 0; i < 6; i++) {
-        if (i != 5) {
-          value = value + String(dataValue[i]) + String("+");
-        } else {
-          value = value + String(dataValue[i]);
-        }
+    getData();
+    String value;
+    for (int i = 0; i < 6; i++) {
+      if (i != 5) {
+        value = value + String(dataValue[i]) + String("+");
+      } else {
+        value = value + String(dataValue[i]);
       }
-      writeToSDI12(value);
-      Serial.println("Measurement taken and sent.");
-      measureFlag = false;
     }
+    writeToSDI12(value);
+    Serial.println("Measurement taken and sent.");
   }
 };
 
@@ -191,7 +187,6 @@ private:
 
   Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
 
-
 public:
   float sensorValues[6][20];
   int mappedSensorValues[6][20];
@@ -201,6 +196,16 @@ public:
   bool fillRectNeeded = true;
   bool requedSaving = false;
   bool saveToSD = false;
+  // bool needGraphFlag = false;
+  bool displayChangeFlag = false;
+  bool clockRefreshFlag = false;
+
+  int button1State = 0;
+  int button2State = 0;
+  int prevButton1State = 0;
+  int prevButton2State = 0;
+
+  bool menuStarted = false;
 
   unsigned long last_interrupt_time = 0;
   unsigned long delayTime = 500;
@@ -230,32 +235,34 @@ public:
     tft.fillScreen(ST77XX_BLACK);
     tft.setRotation(3);
     rtc.begin();
-
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   }
 
   void setLayOut() {
 
-    tft.drawLine(0, 13, 159, 13, ST77XX_WHITE);
+    tft.drawLine(0, 13, 159, 13, ST77XX_WHITE);    // Top Ling
+    tft.drawLine(0, 103, 159, 103, ST77XX_WHITE);  // Bottom Line
 
-    tft.drawLine(0, 103, 159, 103, ST77XX_WHITE);
-
+    // Left arrow symbol
     tft.fillCircle(14, 116, 8, ST77XX_GREEN);
     tft.drawLine(11.35, 115.65, 15.35, 119.65, ST77XX_BLACK);
     tft.drawLine(11.35, 116.65, 15.35, 120.65, ST77XX_BLACK);
     tft.drawLine(11.65, 116.65, 15.65, 112.65, ST77XX_BLACK);
     tft.drawLine(10.65, 116.65, 15.65, 111.65, ST77XX_BLACK);
 
+    // Down Arrow Symbol
     tft.fillCircle(58, 116, 8, ST77XX_GREEN);
     tft.fillTriangle(53, 117, 58, 122, 63, 117, ST77XX_BLACK);
     tft.fillTriangle(55, 117, 58, 120, 61, 117, ST77XX_GREEN);
     tft.fillRect(58.25, 111, 1.5, 7, ST77XX_BLACK);
 
+    // Up Arrow Symbol
     tft.fillCircle(102, 116, 8, ST77XX_GREEN);
     tft.fillTriangle(97, 115, 102, 110, 107, 115, ST77XX_BLACK);
     tft.fillTriangle(99, 115, 102, 112, 105, 115, ST77XX_GREEN);
     tft.fillRect(102.75, 114, 1.5, 7, ST77XX_BLACK);
 
+    // Right Arrow Symbol
     tft.fillCircle(146, 116, 8, ST77XX_GREEN);
     tft.drawLine(144.65, 113.35, 148.65, 117.35, ST77XX_BLACK);
     tft.drawLine(144.65, 112.35, 148.65, 116.35, ST77XX_BLACK);
@@ -265,29 +272,33 @@ public:
 
   void displayTime(DateTime now, uint16_t color) {
     tft.setTextWrap(false);
-    tft.setCursor(3, 3);
     tft.setTextSize(1);
-
     tft.setTextColor(color);
-    tft.print(now.year(), DEC);
-    tft.print('/');
-    tft.print(now.month(), DEC);
-    tft.print('/');
-    tft.print(now.day(), DEC);
     tft.setCursor(115, 3);
-    tft.print(now.hour(), DEC);
-    tft.print(':');
-    tft.print(now.minute(), DEC);
-    tft.print(':');
-    tft.print(now.second(), DEC);
-    tft.println();
+    tft.print(now.timestamp(DateTime::TIMESTAMP_TIME));
   }
-
 
   void mainMenu() {
     if (fillRectNeeded) {
+      fillRectNeeded = false;
       tft.fillRect(0, 15, 160, 85, ST77XX_BLACK);
     }
+
+    // Print Menu Options
+    tft.setTextColor(ST77XX_WHITE);
+    tft.setCursor(15, 22);
+    tft.println("> Temperature");
+    tft.setCursor(15, 34);
+    tft.println("> Humidity");
+    tft.setCursor(15, 46);
+    tft.println("> Pressure");
+    tft.setCursor(15, 58);
+    tft.println("> Gas Resistance");
+    tft.setCursor(15, 70);
+    tft.println("> Altutude");
+    tft.setCursor(15, 82);
+    tft.println("> Light Level");
+
     tft.setTextColor(ST77XX_RED);
     switch (selectedOption) {
       case 0:
@@ -333,37 +344,12 @@ public:
           break;
         }
     }
-
-    tft.setTextColor(ST77XX_WHITE);
-    tft.setCursor(15, 22);
-    tft.println("> Temperature");
-
-
-    tft.setCursor(15, 34);
-    tft.println("> Humidity");
-
-
-    tft.setCursor(15, 46);
-    tft.println("> Pressure");
-
-
-    tft.setCursor(15, 58);
-    tft.println("> Gas Resistance");
-
-
-    tft.setCursor(15, 70);
-    tft.println("> Altutude");
-
-
-    tft.setCursor(15, 82);
-    tft.println("> Light Level");
-
-
-    fillRectNeeded = false;
   }
 
   void showGraph() {
+    // needGraphFlag = false;
     if (fillRectNeeded) {
+      fillRectNeeded = false;
       tft.fillRect(0, 15, 160, 85, ST77XX_BLACK);
     }
 
@@ -458,7 +444,6 @@ public:
     tft.setCursor(1, 80);
     tft.print(minValue);
 
-
     tft.setCursor(35, 92);
     tft.print("Press > to save Data");
 
@@ -470,77 +455,33 @@ public:
       tft.fillCircle(xOne, 85.5 - mappedSensorValues[selectedOption][i - 1], 1, ST77XX_RED);
       tft.fillCircle(xTwo, 85.5 - mappedSensorValues[selectedOption][i], 1, ST77XX_RED);
     }
-
-    fillRectNeeded = false;
   }
 
-  void startUp() {
-    tft.setCursor(52, 82);
+  void startUp(DateTime now) {
     tft.setTextColor(ST77XX_WHITE);
+    tft.setTextWrap(false);
+    tft.setTextSize(1);
+
+    tft.setCursor(3, 3);
+    tft.print(now.timestamp(DateTime::TIMESTAMP_DATE));
+
+    tft.setCursor(52, 82);
     tft.print("Data Logger");
 
     tft.fillRect(56, 38, 41, 31, ST77XX_WHITE);
     tft.fillRect(57, 39, 39, 22, ST77XX_BLACK);
     tft.fillRect(92, 42, 8, 6, ST77XX_BLACK);
-
-    tft.drawLine(56.65, 56.65, 62.65, 50.65, ST77XX_WHITE);
-    tft.drawLine(56.65, 56.65, 62.65, 50.65, ST77XX_BLACK);
-    tft.fillCircle(64, 49, 3, ST77XX_WHITE);
-    tft.fillCircle(64, 49, 3, ST77XX_BLACK);
-
-    tft.drawLine(66, 50.5, 71.5, 55.5, ST77XX_WHITE);
-    tft.drawLine(66, 50.5, 71.5, 55.5, ST77XX_BLACK);
-    tft.fillCircle(73, 56, 3, ST77XX_WHITE);
-    tft.fillCircle(73, 56, 3, ST77XX_BLACK);
-
-    tft.drawLine(74.5, 53.5, 78.5, 48, ST77XX_WHITE);
-    tft.drawLine(74.5, 53.5, 78.5, 48, ST77XX_BLACK);
-    tft.fillCircle(79, 47, 3, ST77XX_WHITE);
-    tft.fillCircle(79, 47, 3, ST77XX_BLACK);
-
-    tft.drawLine(80.5, 48, 89, 56, ST77XX_WHITE);
-    tft.drawLine(80.5, 48, 89, 56, ST77XX_BLACK);
-    tft.fillCircle(89, 56, 3, ST77XX_WHITE);
-    tft.fillCircle(89, 56, 3, ST77XX_BLACK);
-
-    tft.drawLine(90.5, 55, 103, 40.5, ST77XX_WHITE);
-    tft.drawLine(90.5, 55, 103, 40.5, ST77XX_BLACK);
-
-    tft.drawLine(103, 40.5, 99, 40.5, ST77XX_WHITE);
-    tft.drawLine(103, 40.5, 103.5, 44, ST77XX_WHITE);
-
-    tft.drawLine(103, 40.5, 99, 40.5, ST77XX_BLACK);
-    tft.drawLine(103, 40.5, 103.5, 44, ST77XX_BLACK);
-
-
-
-
-
-    tft.fillRect(56, 38, 41, 31, ST77XX_WHITE);
-    tft.fillRect(57, 39, 39, 22, ST77XX_BLACK);
-    tft.fillRect(92, 42, 8, 6, ST77XX_BLACK);
-
     tft.drawLine(56.65, 56.65, 62.65, 50.65, ST77XX_WHITE);
     tft.fillCircle(64, 49, 3, ST77XX_WHITE);
-
-
     tft.drawLine(66, 50.5, 71.5, 55.5, ST77XX_WHITE);
     tft.fillCircle(73, 56, 3, ST77XX_WHITE);
-
-
     tft.drawLine(74.5, 53.5, 78.5, 48, ST77XX_WHITE);
     tft.fillCircle(79, 47, 3, ST77XX_WHITE);
-
-
     tft.drawLine(80.5, 48, 89, 56, ST77XX_WHITE);
     tft.fillCircle(89, 56, 3, ST77XX_WHITE);
-
-
     tft.drawLine(90.5, 55, 103, 40.5, ST77XX_WHITE);
-
     tft.drawLine(103, 40.5, 99, 40.5, ST77XX_WHITE);
     tft.drawLine(103, 40.5, 103.5, 44, ST77XX_WHITE);
-
     tft.fillRect(72, 71, 9, 3, ST77XX_WHITE);
     tft.fillRect(67, 74, 19, 4, ST77XX_WHITE);
   }
@@ -552,15 +493,32 @@ public:
 
     tft.setCursor(92, 1);
     tft.setTextColor(ST77XX_WHITE);
-    tft.print("(S)");   
+    tft.print("(S)");
   }
 
+  void displayStart() {
+    button1State = digitalRead(buttonPins[0]);
+    button2State = digitalRead(buttonPins[3]);
+    if (button1State == LOW && button2State == LOW) {
+      if (prevButton1State == HIGH || prevButton2State == HIGH) {
+        displayChangeFlag = true;
+        menuStarted = true;
+        buttonClicks[0] = false;
+        buttonClicks[3] = false;
+      }
+    }
+    prevButton1State = button1State;
+    prevButton2State = button2State;
+  }
 
-  void handleDisplay() {
-
+  void refreshClock() {
+    clockRefreshFlag = false;
     displayTime(now, ST77XX_BLACK);
     now = rtc.now();
     displayTime(now, ST77XX_WHITE);
+  }
+
+  void handleButtonClick() {
 
     if (millis() - last_interrupt_time > delayTime && anyButtonClick) {
       last_interrupt_time = millis();
@@ -569,52 +527,60 @@ public:
         buttonClicks[0] = false;
         if (pageNum == 1 && saveToSD == true) return;
         pageNum = (pageNum + 1) % 3;
+        displayChangeFlag = true;
         if (pageNum == 2) return;
         fillRectNeeded = true;
+        return;
       }
 
       if (buttonClicks[1]) {
         buttonClicks[1] = false;
         if (pageNum != 0) return;
+        displayChangeFlag = true;
         selectedOption = (selectedOption - 1 + 6) % 6;
+        return;
       }
 
       if (buttonClicks[2]) {
         buttonClicks[2] = false;
         if (pageNum != 0) return;
+        displayChangeFlag = true;
         selectedOption = (selectedOption + 1) % 6;
+        return;
       }
 
       if (buttonClicks[3]) {
         buttonClicks[3] = false;
         if (pageNum != 0) {
           pageNum = (pageNum - 1 + 3) % 3;
+          displayChangeFlag = true;
           fillRectNeeded = true;
         }
+        return;
       }
     }
+  }
 
 
+  void handleDisplay() {
+    displayChangeFlag = false;
     if (pageNum == 0) {
       mainMenu();
     } else if (pageNum == 1) {
       showGraph();
     } else if (pageNum == 2) {
       saveToSD = true;
-      showGraph();
       savingSymbol();
       pageNum = 1;
     }
   }
 
   static void goBack() {
-
     buttonClicks[0] = true;
     anyButtonClick = true;
   }
 
   static void goDown() {
-
     buttonClicks[1] = true;
     anyButtonClick = true;
   }
@@ -638,22 +604,17 @@ private:
   static constexpr uint8_t SOFT_MOSI_PIN = 11;
   static constexpr uint8_t SOFT_SCK_PIN = 13;
 
+  const int LEDPINS[6] = { 48, 49, 50, 51, 52, 53 };
+
 #define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SD_SCK_MHZ(0), &softSpi)
   SoftSpiDriver<SOFT_MISO_PIN, SOFT_MOSI_PIN, SOFT_SCK_PIN> softSpi;
 
   SdFs sd;
   FsFile file;
 
-  int button1State = 0;
-  int button2State = 0;
-  int prevButton1State = 0;
-  int prevButton2State = 0;
 public:
 
   LCD_Display display;
-  volatile bool HighValues[6] = { false, false, false, false, false, false };
-  const int LEDPINS[6] = { 48, 49, 50, 51, 52, 53 };
-  bool displayState = false;
   SDI_12 sdi12;
 
   void init() {
@@ -669,30 +630,24 @@ public:
 
     file.close();
     display.init();
-    display.startUp();
+    display.startUp(display.now);
     display.setLayOut();
   }
 
-  void displayStart() {
-    button1State = digitalRead(display.buttonPins[0]);
-    button2State = digitalRead(display.buttonPins[3]);
-
-    if (button1State == LOW && button2State == LOW) {
-      if (prevButton1State == HIGH || prevButton2State == HIGH) {
-        displayState ^= true;
-      }
-    }
-    prevButton1State = button1State;
-    prevButton2State = button2State;
-  }
-
   void handleLogger() {
+    if (display.clockRefreshFlag) display.refreshClock();
+
+    //Check to see if menu has been entered
+    if (!display.menuStarted) display.displayStart();
+
+    if (display.menuStarted) display.handleButtonClick();
+
+    if (display.displayChangeFlag) display.handleDisplay();
 
     if (Serial1.available()) {
       String input = Serial1.readStringUntil('\n');
       char buf[input.length()];
       memset(buf, 0, sizeof(buf));
-
 
       for (int i = 1; i < input.length(); i++) {
         buf[i - 1] = input[i];
@@ -700,58 +655,59 @@ public:
 
       sdi12.runCommand(buf);
     }
-    sdi12.handleMeasurement();
 
-    displayStart();
-
-    if (!displayState) return;
-    display.handleDisplay();
-    displayState ^= false;
-
-    // Puts data in sensorValues array
-    for (int j = 0; j < 6; j++) {
-      for (int i = 0; i < 20; i++) {
-        display.sensorValues[j][i] = display.sensorValues[j][i + 1];
+    if (sdi12.measureFlag) {
+      sdi12.measureFlag = false;
+      sdi12.handleMeasurement();
+      // Puts data in sensorValues array
+      for (int j = 0; j < 6; j++) {
+        for (int i = 0; i < 20; i++) {
+          display.sensorValues[j][i] = display.sensorValues[j][i + 1];
+        }
+        display.sensorValues[j][19] = sdi12.dataValue[j];
       }
-      display.sensorValues[j][19] = sdi12.dataValue[j];
+      alertCheck();
+      // display.needGraphFlag = true;
+      if (display.requedSaving) {
+        saveData(file, sdi12.dataValue, display.now);
+        display.requedSaving = false;
+      }
+      display.displayChangeFlag = true;
     }
+  }
 
-    if (display.requedSaving) {
-      saveData(file, sdi12.dataValue, display.now);
-      display.requedSaving = false;
-    }
-
-    if (HighValues[0] == true) {
+  void alertCheck() {
+    if (sdi12.dataValue[0] > 30) {
       digitalWrite(LEDPINS[0], HIGH);
     } else {
       digitalWrite(LEDPINS[0], LOW);
     }
 
-    if (HighValues[1] == true) {
+    if (sdi12.dataValue[1] > 70) {
       digitalWrite(LEDPINS[1], HIGH);
     } else {
       digitalWrite(LEDPINS[1], LOW);
     }
 
-    if (HighValues[2] == true) {
+    if (sdi12.dataValue[2] > 700) {
       digitalWrite(LEDPINS[2], HIGH);
     } else {
       digitalWrite(LEDPINS[2], LOW);
     }
 
-    if (HighValues[3] == true) {
+    if (sdi12.dataValue[3] > 700) {
       digitalWrite(LEDPINS[3], HIGH);
     } else {
       digitalWrite(LEDPINS[3], LOW);
     }
 
-    if (HighValues[4] == true) {
+    if (sdi12.dataValue[4] > 8000) {
       digitalWrite(LEDPINS[4], HIGH);
     } else {
       digitalWrite(LEDPINS[4], LOW);
     }
 
-    if (HighValues[5] == true) {
+    if (sdi12.dataValue[5] > 50000) {
       digitalWrite(LEDPINS[5], HIGH);
     } else {
       digitalWrite(LEDPINS[5], LOW);
@@ -763,17 +719,7 @@ public:
     Serial.println("Working");
     //file.rewind();
     file.seekEnd();
-    file.print(now.year());
-    file.print("/");
-    file.print(now.month());
-    file.print("/");
-    file.print(now.day());
-    file.print(" ");
-    file.print(now.hour());
-    file.print(":");
-    file.print(now.minute());
-    file.print(":");
-    file.print(now.second());
+    file.print(now.timestamp(DateTime::TIMESTAMP_FULL));
     file.print(" ");
     for (int i = 0; i < 6; i++) {
       if (i != 5) {
@@ -794,44 +740,8 @@ void setup() {
   logger.init();
 }
 
-
 void loop() {
   logger.handleLogger();
-  if (logger.display.sensorValues[0][19] > 30) {
-    logger.HighValues[0] = true;
-  } else {
-    logger.HighValues[0] = false;
-  }
-
-  if (logger.display.sensorValues[1][19] > 70) {
-    logger.HighValues[1] = true;
-  } else {
-    logger.HighValues[1] = false;
-  }
-
-  if (logger.display.sensorValues[2][19] > 700) {
-    logger.HighValues[2] = true;
-  } else {
-    logger.HighValues[2] = false;
-  }
-
-  if (logger.display.sensorValues[3][19] > 700) {
-    logger.HighValues[3] = true;
-  } else {
-    logger.HighValues[3] = false;
-  }
-
-  if (logger.display.sensorValues[4][19] > 8000) {
-    logger.HighValues[4] = true;
-  } else {
-    logger.HighValues[4] = false;
-  }
-
-  if (logger.display.sensorValues[5][19] > 50000) {
-    logger.HighValues[5] = true;
-  } else {
-    logger.HighValues[5] = false;
-  }
 }
 
 void TC0_Handler() {
@@ -840,7 +750,7 @@ void TC0_Handler() {
   if (logger.display.saveToSD) logger.display.requedSaving = true;
 }
 
-void TC1_Handler() {
-  TC_GetStatus(TC1, 1);
-  logger.displayState ^= true;
+void TC3_Handler() {
+  TC_GetStatus(TC1, 0);
+  logger.display.clockRefreshFlag = true;
 }
