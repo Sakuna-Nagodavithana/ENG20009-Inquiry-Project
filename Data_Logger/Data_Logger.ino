@@ -20,19 +20,22 @@
 static volatile bool buttonClicks[4] = { false, false, false, false };
 static volatile bool anyButtonClick = false;
 
-BH1750 lightMeter(0x23);
+
 
 class SDI_12 {
 private:
   MatchState ms;
   Adafruit_BME680 bme;
+  BH1750 lightMeter;
 
   const int SDI12PIN = 8;
 
   float SEALEVELPRESSURE_HPA = 1013.25;
+
   int address = 0;
-  bool initialize = false;
   int continusMesurmentSensorID;
+
+  bool initialize = false;
 
   void startTimer(Tc *tc, uint32_t channel, IRQn_Type irq, uint32_t frequency) {
     pmc_set_writeprotect(false);
@@ -50,6 +53,7 @@ private:
 public:
 
   volatile bool measureFlag = false;
+
   float dataValue[6];
 
   void setUp() {
@@ -130,7 +134,7 @@ public:
       if (commandAddress == address && initialize) {
         startTimer(TC0, 0, TC0_IRQn, 2);
         continusMesurmentSensorID = sensorID;
-        Serial.println("Working");
+        //Serial.println("Working");
       }
     }
   }
@@ -138,18 +142,12 @@ public:
   // Get data from sensors and save to temp array
   void getData() {
     bme.performReading();
-    float value = bme.temperature;
-    dataValue[0] = value;
-    value = bme.humidity;
-    dataValue[1] = value;
-    value = bme.pressure / 100.0;
-    dataValue[2] = value;
-    value = bme.gas_resistance / 1000.0;
-    dataValue[3] = value;
-    value = bme.readAltitude(SEALEVELPRESSURE_HPA);
-    dataValue[4] = value;
-    value = lightMeter.readLightLevel();
-    dataValue[5] = value;
+    dataValue[0] = bme.temperature;
+    dataValue[1] = bme.humidity;
+    dataValue[2] = bme.pressure / 100.0;
+    dataValue[3] = bme.gas_resistance / 1000.0;
+    dataValue[4] = bme.readAltitude(SEALEVELPRESSURE_HPA);
+    dataValue[5] = lightMeter.readLightLevel();
   }
 
   // Send text to terminal via SDI12 connection
@@ -192,19 +190,26 @@ private:
   const int TFT_CS = 10;
   const int TFT_RST = 6;
   const int TFT_DC = 7;
-
   const int TFT_SCLK = 13;
   const int TFT_MOSI = 11;
+  const int buttonPins[4] = { 2, 3, 4, 5 };
 
   Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
+  RTC_DS1307 rtc;
+
+  char minValue[50];
+  char maxValue[50];
+  char sensorName[50];
+
+  int upperValue;
+  int lowerValue;
 
   bool fillRectNeeded = true;
-  const int buttonPins[4] = { 2, 3, 4, 5 };
 
 public:
   float sensorValues[6][20];
   int mappedSensorValues[6][20];
-  RTC_DS1307 rtc;
+
   DateTime now;
 
   bool requedSaving = false;
@@ -215,13 +220,6 @@ public:
   volatile int selectedOption = 0;
   volatile int pageNum = -1;
 
-  char minValue[50];
-  char maxValue[50];
-
-  int upperValue;
-  int lowerValue;
-
-  char sensorName[50];
 
   void init() {
     for (int pin : buttonPins) {
@@ -309,7 +307,7 @@ public:
     tft.setCursor(15, 80);
     tft.println("> Light Level");
     tft.setCursor(15, 92);
-    tft.print("> Saving data?");
+    tft.print("> Saving data ");
     if (!requedSaving) {
       savingSymbol(ST77XX_BLACK);
       tft.fillRect(129, 91, 18, 9, ST77XX_BLACK);
@@ -368,7 +366,7 @@ public:
       case 6:
         {
           tft.setCursor(15, 92);
-          tft.print("> Saving data?");
+          tft.print("> Saving data");
           break;
         }
     }
@@ -471,8 +469,8 @@ public:
     tft.print(maxValue);
     tft.setCursor(1, 80);
     tft.print(minValue);
-    tft.setCursor(5, 94);
-    tft.print("Press > for Data Saving");
+    // tft.setCursor(5,94);
+    // tft.print("Press > for Data Saving");
 
     // Draw new displayed data
     for (int i = 1; i < 20; i++) {
@@ -616,6 +614,7 @@ public:
 };
 
 
+
 class Data_Logger {
 private:
   uint8_t SD_CS_PIN = A3;
@@ -624,7 +623,7 @@ private:
   static constexpr uint8_t SOFT_SCK_PIN = 13;
 
   const int LEDPINS[6] = { 48, 49, 50, 51, 52, 53 };
-
+  #define WDT_KEY (0xA5)
   #define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SD_SCK_MHZ(0), &softSpi)
   SoftSpiDriver<SOFT_MISO_PIN, SOFT_MOSI_PIN, SOFT_SCK_PIN> softSpi;
 
@@ -636,7 +635,13 @@ public:
   LCD_Display display;
   SDI_12 sdi12;
 
+  void watchdogSetup(void) {
+    /*** watchdogDisable (); ***/
+  }
+
   void init() {
+    initializeWatchdog();
+
     for (int pin : LEDPINS) { pinMode(pin, OUTPUT); }
     sdi12.setUp();
     if (!sd.begin(SD_CONFIG)) {
@@ -646,7 +651,7 @@ public:
     if (!file.open("MR_Sensor_Data.txt", O_RDWR | O_CREAT)) {
       Serial.println(F("open failed"));
     }
-    file.rewind();
+    //file.rewind();
     file.println("Date Time Temperature Humidity Pressure GasResistance Altitude LightLevel");
     file.println("-------------------------------------------------------------------------");
     file.close();
@@ -657,7 +662,9 @@ public:
 
   void handleLogger() {
 
+    resetWatchdog();
     // If user is not in menu; check for double button press
+
     if (!display.menuStarted) display.displayStart();
 
     // If user is in menu; check for a button press at every clock refresh (1 second timer)
@@ -740,10 +747,32 @@ public:
     }
   }
 
+  void initializeWatchdog() {
+    // Enable watchdog.
+    WDT->WDT_MR = WDT_MR_WDD(0xFFF) | WDT_MR_WDFIEN |  //  Triggers an interrupt or WDT_MR_WDRSTEN to trigger a Reset
+                  WDT_MR_WDV(256 * 1);                 // Watchdog triggers a reset or an interrupt after 1 seconds if underflow
+
+    NVIC_EnableIRQ(WDT_IRQn);
+
+    uint32_t status = (RSTC->RSTC_SR & RSTC_SR_RSTTYP_Msk) >> RSTC_SR_RSTTYP_Pos /*8*/;  // Get status from the last Reset
+    //Serial.print("RSTTYP = 0b");
+    //Serial.println(status, BIN);  // Should be 0b010 after first watchdog reset
+  }
+
+  void resetWatchdog() {
+    //Restart watchdog
+    WDT->WDT_CR = WDT_CR_KEY(WDT_KEY)
+                  | WDT_CR_WDRSTT;
+
+    //Serial.println("Enter the main loop : Restart watchdog");
+    GPBR->SYS_GPBR[0] += 1;
+    //Serial.print("GPBR = ");
+    //Serial.println(GPBR->SYS_GPBR[0]);
+  }
+
+
   void saveData(FsFile file, float dataValue[6], DateTime now) {
     file.open("MR_Sensor_Data.txt", O_RDWR);
-    Serial.println("Working");
-    //file.rewind();
     file.seekEnd();
     file.print(now.timestamp(DateTime::TIMESTAMP_DATE));
     file.print(" ");
@@ -772,12 +801,18 @@ void loop() {
   logger.handleLogger();
 }
 
-void TC0_Handler() {
+void TC0_Handler(void) {
   TC_GetStatus(TC0, 0);
   logger.sdi12.measureFlag = true;
 }
 
-void TC3_Handler() {
+void TC3_Handler(void) {
   TC_GetStatus(TC1, 0);
   logger.display.clockRefreshFlag = true;
+}
+
+void WDT_Handler(void) {
+  WDT->WDT_SR;  // Clear status register
+
+  printf("in WDT\n");
 }
