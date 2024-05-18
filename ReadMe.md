@@ -26,7 +26,6 @@ The SDI-12 Data Logger project is designed to capture environmental data using v
 
 ## Introduction
 
-![Placeholder for Project Image](./Images/project_image.png)
 
 Welcome to the SDI-12 Data Logger project! This project aims to provide a comprehensive solution for capturing and logging environmental data using an Arduino-based system. The following sections will guide you through the system's capabilities, setup, and usage.
 
