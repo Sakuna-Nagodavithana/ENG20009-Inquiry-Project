@@ -1,9 +1,13 @@
+
+---
+
 # SDI-12 Data Logger with Environmental Sensing
 
 The SDI-12 Data Logger project is designed to capture environmental data using various sensors connected to an Arduino board. This sophisticated system integrates functionalities for temperature, humidity, pressure, gas resistance, altitude, and light level measurement. It also features an LCD display for real-time data visualization, SD card logging for data storage, and LED alerts for specific sensor thresholds.
 
 ## Table of Contents
 
+- [Introduction](#introduction)
 - [System Overview](#system-overview)
 - [SDI-12 Command Support](#sdi-12-command-support)
 - [Interrupts and Timers](#interrupts-and-timers)
@@ -19,6 +23,12 @@ The SDI-12 Data Logger project is designed to capture environmental data using v
 - [Support and Contact Information](#support-and-contact-information)
 - [Credits](#credits)
 - [Appendix and References](#appendix-and-references)
+
+## Introduction
+
+![Placeholder for Project Image](./Images/project_image.png)
+
+Welcome to the SDI-12 Data Logger project! This project aims to provide a comprehensive solution for capturing and logging environmental data using an Arduino-based system. The following sections will guide you through the system's capabilities, setup, and usage.
 
 ## System Overview
 
@@ -53,7 +63,8 @@ The SDI-12 Data Logger employs interrupt service routines (ISRs) to handle async
 
 ### Timer Interrupts
 
-Timer interrupts are used to schedule regular tasks, such as reading sensor data at consistent intervals. The Arduino’s built-in timers are configured to trigger an interrupt that executes a function — this is particularly useful for continuous measurement modes where data must be sampled at steady, predefined rates.
+- **Sensor Data Collection:** A timer interrupt every 3 seconds triggers the collection of data from all sensors.
+- **Clock Refresh:** The clock on the display is refreshed using a timer interrupt every 1 second.
 
 ### Hardware Interrupts
 
@@ -61,25 +72,34 @@ The hardware is also designed to utilize interrupts triggered by external events
 
 ### Software Interrupts
 
-Software interrupts are triggered when sensor values exceed predefined thresholds, activating LEDs connected to pins 48, 49, 50, 51, 52, and 53. This feature ensures immediate visual alerts for critical environmental conditions.
+Software interrupts are triggered when sensor values exceed predefined thresholds, activating LEDs connected to pins 48, 49, 50, 51, 52, and 53. Note: In the given schematic diagram, the LEDs are not connected; you will need to connect these to see the software interrupt in action.
 
 ## Display Overview
 
 The LCD display is a crucial interface for the SDI-12 Data Logger, providing real-time data visualization and system interaction. Below are the two primary display modes of the device:
 
+### Intro
+![Intro](./Images/Intro.png)
+
+Upon powering on the device, the LCD display initially shows the introductory screen featuring the project logo. To proceed from this screen to the main interface, the user must press both the first and the last button simultaneously. This action transitions the display to the Sub Menu, where sensor readings and navigational options are presented.
+
 ### Sub Menu
 
-![Sub Menu Display](./Images/sub_menu_display.png)
+![Sub Menu Display](./Images/Sub_Menu.png)
 
 This menu displays the current date and time, sensor readings, and navigational prompts. It is the main interface for sensor selection and system navigation.
 
 ### Show Data Option
 
-![Show Data Option Display](./Images/show_data_option_display.png)
+![Show Data Option Display](./Images/Show_Data.png)
 
 When selecting a specific sensor from the Sub Menu, the display will switch to the data visualization mode, showing a graphical representation of the sensor data over time. The improved display now shows the last 20 data points, with the Y-axis representing the value range and the X-axis indicating time or data points.
 
 Both displays integrate interactive elements such as buttons for navigation (`<`, `>`) and selection (`∧`, `∨`). The intuitive design ensures straightforward operation for various user interactions, from sensor data review to system configuration.
+
+### Save Data Functionality
+
+If the save data button is selected, the device saves data from all sensors to the SD card and displays an icon like this "(S)" near the time, indicating that data is being saved.
 
 ### Dual Button Press Functionality
 
@@ -87,7 +107,7 @@ A specific feature of the data logger is the ability to turn the LCD display on 
 
 ## Hardware Requirements
 
-- Arduino-compatible board ( Arudino due Bord)
+- Arduino-compatible board
 - Adafruit BME680 sensor
 - BH1750 light sensor
 - SD card module
@@ -112,7 +132,10 @@ A specific feature of the data logger is the ability to turn the LCD display on 
 1. **Library Installation:** Ensure all required libraries are installed in your Arduino IDE. Most can be found in the Library Manager.
 2. **Hardware Setup:** Connect all hardware components as per the schematic diagram.
    ![Schematic Diagram](./Images/SDI_12_Diagram.png)
-3. **Upload the Sketch:** Open the provided `.ino` file in the Arduino IDE, select your board and port, then upload the sketch to your Arduino.
+
+   
+   **Note:** In the given schematic diagram, the LEDs are not connected. Connect these to pins 48, 49, 50, 51, 52, and 53 to utilize the software interrupt feature.
+4. **Upload the Sketch:** Open the provided `.ino` file in the Arduino IDE, select your board and port, then upload the sketch to your Arduino.
 
 ## Usage
 
@@ -122,6 +145,7 @@ After setting up the hardware and uploading the code, follow these steps to use 
 2. Use the buttons to navigate through the menu on the LCD display.
 3. View real-time sensor data or historical data graphs.
 4. Sensor data is automatically logged to the SD card.
+5. Select the save data button to save data from all sensors. An "(S)" icon will appear near the time to indicate that data is being saved.
 
 Refer to the button functions diagram for navigation. (Insert button_functions_diagram.png here)
 
@@ -131,9 +155,12 @@ Refer to the button functions diagram for navigation. (Insert button_functions_d
 - **SDI-12 Communication:** Implements the SDI-12 protocol for digital communication with sensors, enabling efficient data transmission.
 - **Data Logging:** Measured data is logged to an SD card, allowing for data collection over extended periods.
 - **User Interface:** The device's buttons are used to interact with the graphical user interface on the LCD display, which shows sensor data and graphs.
-- **Interrupt-Driven Measurement:** The system's interrupt-driven design allows for accurate timing of measurements. When the timer interrupt occurs, the system captures data from the sensors, processes it, and then either displays it on the LCD or logs it to the SD card, depending on the current mode of operation.
+- **Interrupt-Driven Measurement:** The system's interrupt-driven design allows for accurate timing of measurements. When the timer interrupt occurs every 3 seconds, the system captures data from the sensors, processes it, and then either displays it on the LCD or logs it to the SD card, depending on the current mode of operation.
+- **Clock Refresh:** The clock on the display is refreshed every 1 second using a timer interrupt.
 - **Threshold Alerts:** LEDs light up when sensor values exceed predefined thresholds, providing immediate visual feedback for critical conditions.
-- **Watchdog Timer:** A watchdog timer resets the board if it becomes unresponsive, ensuring continuous operation.
+- **Watchdog Timer:** A watchdog timer resets the board if it becomes unresponsive, ensuring continuous operation
+
+.
 
 ## Customization
 
@@ -145,14 +172,12 @@ You can customize the data logger by modifying the Arduino sketch. This includes
 - **Sensor Errors:** Verify wiring and check if the correct I2C address is used. Ensure libraries are up to date.
 - **SD Card Problems:** Confirm the SD card is formatted correctly and check the card's connections.
 - **Interrupt Handling Issues:** Ensure that the timer and button interrupts are correctly set up in the code. If interrupts are not triggering as expected, verify the interrupt pin connections and ensure that the corresponding ISRs are properly defined.
-- **Threshold Alerts:** Check the LED connections and verify the threshold values set in the code.
 
 ## Version History
 
 `1.0.0` - Initial release of the SDI-12 Data Logger system documentation.
-`2.0.0` - Added save functionality from the menu, improved data visualization to show the last
 
- 20 data points, integrated software interrupts for sensor thresholds, added LED alerts, and implemented a watchdog timer.
+`1.1.0` - Added save functionality from the menu, improved data visualization to show the last 20 data points, integrated software interrupts for sensor thresholds, added LED alerts, and implemented a watchdog timer.
 
 ## Support and Contact Information
 
@@ -175,3 +200,4 @@ To enhance your understanding and implementation of the SDI-12 protocol or to ga
 - [BH1750 Details](https://cdn-learn.adafruit.com/downloads/pdf/adafruit-bh1750-ambient-light-sensor.pdf) - Detailed specifications and usage information for the BH1750 sensor.
 - [TFT Display Graphics](https://cdn-learn.adafruit.com/downloads/pdf/adafruit-gfx-graphics-library.pdf)
 
+---
