@@ -1,6 +1,6 @@
 # SDI-12 Data Logger with Environmental Sensing
 
-The SDI-12 Data Logger project is designed to capture environmental data using various sensors connected to an Arduino board. This sophisticated system integrates functionalities for temperature, humidity, pressure, gas resistance, and light level measurement. It also features an LCD display for real-time data visualization and SD card logging for data storage.
+The SDI-12 Data Logger project is designed to capture environmental data using various sensors connected to an Arduino board. This sophisticated system integrates functionalities for temperature, humidity, pressure, gas resistance, altitude, and light level measurement. It also features an LCD display for real-time data visualization, SD card logging for data storage, and LED alerts for specific sensor thresholds.
 
 ## Table of Contents
 
@@ -15,18 +15,24 @@ The SDI-12 Data Logger project is designed to capture environmental data using v
 - [How It Works](#how-it-works)
 - [Customization](#customization)
 - [Troubleshooting](#troubleshooting)
+- [Version History](#version-history)
+- [Support and Contact Information](#support-and-contact-information)
+- [Credits](#credits)
+- [Appendix and References](#appendix-and-references)
 
 ## System Overview
 
-The SDI-12 Data Logger leverages Arduino technology to monitor and record environmental conditions. It uses a range of sensors to measure temperature, humidity, pressure, gas resistance, and light levels, providing valuable insights into the surrounding environment.
+The SDI-12 Data Logger leverages Arduino technology to monitor and record environmental conditions. It uses a range of sensors to measure temperature, humidity, pressure, gas resistance, altitude, and light levels, providing valuable insights into the surrounding environment.
 
 **Features:**
 
-- **Multi-Sensor Integration:** Utilizes the Adafruit BME680 for temperature, humidity, pressure, and gas resistance measurements, along with the BH1750 for light level detection.
+- **Multi-Sensor Integration:** Utilizes the Adafruit BME680 for temperature, humidity, pressure, gas resistance, and altitude measurements, along with the BH1750 for light level detection.
 - **Real-Time Data Display:** Features an LCD display powered by Adafruit GFX for showing current sensor readings and a graph of historical data.
 - **SDI-12 Communication:** Supports SDI-12 protocol for sensor data communication, allowing for easy integration of compatible sensors.
 - **Data Logging:** Saves sensor readings to an SD card for long-term observation and analysis.
 - **Interactive Interface:** Includes button-based navigation for interacting with the device and switching between different data views.
+- **Threshold Alerts:** LEDs light up when sensor values exceed predefined thresholds.
+- **Watchdog Timer:** Implements a watchdog timer to reset the board if it becomes unresponsive.
 
 ## SDI-12 Command Support
 
@@ -53,6 +59,10 @@ Timer interrupts are used to schedule regular tasks, such as reading sensor data
 
 The hardware is also designed to utilize interrupts triggered by external events. This mechanism is applied to the button inputs, which allows the system to respond instantaneously when a user interacts with the device, improving the efficiency and responsiveness of the user interface.
 
+### Software Interrupts
+
+Software interrupts are triggered when sensor values exceed predefined thresholds, activating LEDs connected to pins 48, 49, 50, 51, 52, and 53. This feature ensures immediate visual alerts for critical environmental conditions.
+
 ## Display Overview
 
 The LCD display is a crucial interface for the SDI-12 Data Logger, providing real-time data visualization and system interaction. Below are the two primary display modes of the device:
@@ -67,7 +77,7 @@ This menu displays the current date and time, sensor readings, and navigational 
 
 ![Show Data Option Display](./Images/show_data_option_display.png)
 
-When selecting a specific sensor from the Sub Menu, the display will switch to the data visualization mode, showing a graphical representation of the sensor data over time, with the Y-axis representing the value range and the X-axis indicating time or data points.
+When selecting a specific sensor from the Sub Menu, the display will switch to the data visualization mode, showing a graphical representation of the sensor data over time. The improved display now shows the last 20 data points, with the Y-axis representing the value range and the X-axis indicating time or data points.
 
 Both displays integrate interactive elements such as buttons for navigation (`<`, `>`) and selection (`∧`, `∨`). The intuitive design ensures straightforward operation for various user interactions, from sensor data review to system configuration.
 
@@ -77,12 +87,13 @@ A specific feature of the data logger is the ability to turn the LCD display on 
 
 ## Hardware Requirements
 
-- Arduino-compatible board
+- Arduino-compatible board ( Arudino due Bord)
 - Adafruit BME680 sensor
 - BH1750 light sensor
 - SD card module
 - Adafruit ST7735 LCD display
 - Generic buttons (x4)
+- LEDs (x6) for threshold alerts
 - Miscellaneous: breadboard, jumper wires, etc.
 
 ## Software Dependencies
@@ -121,6 +132,8 @@ Refer to the button functions diagram for navigation. (Insert button_functions_d
 - **Data Logging:** Measured data is logged to an SD card, allowing for data collection over extended periods.
 - **User Interface:** The device's buttons are used to interact with the graphical user interface on the LCD display, which shows sensor data and graphs.
 - **Interrupt-Driven Measurement:** The system's interrupt-driven design allows for accurate timing of measurements. When the timer interrupt occurs, the system captures data from the sensors, processes it, and then either displays it on the LCD or logs it to the SD card, depending on the current mode of operation.
+- **Threshold Alerts:** LEDs light up when sensor values exceed predefined thresholds, providing immediate visual feedback for critical conditions.
+- **Watchdog Timer:** A watchdog timer resets the board if it becomes unresponsive, ensuring continuous operation.
 
 ## Customization
 
@@ -132,10 +145,14 @@ You can customize the data logger by modifying the Arduino sketch. This includes
 - **Sensor Errors:** Verify wiring and check if the correct I2C address is used. Ensure libraries are up to date.
 - **SD Card Problems:** Confirm the SD card is formatted correctly and check the card's connections.
 - **Interrupt Handling Issues:** Ensure that the timer and button interrupts are correctly set up in the code. If interrupts are not triggering as expected, verify the interrupt pin connections and ensure that the corresponding ISRs are properly defined.
+- **Threshold Alerts:** Check the LED connections and verify the threshold values set in the code.
 
 ## Version History
 
 `1.0.0` - Initial release of the SDI-12 Data Logger system documentation.
+`2.0.0` - Added save functionality from the menu, improved data visualization to show the last
+
+ 20 data points, integrated software interrupts for sensor thresholds, added LED alerts, and implemented a watchdog timer.
 
 ## Support and Contact Information
 
@@ -157,3 +174,4 @@ To enhance your understanding and implementation of the SDI-12 protocol or to ga
 - [BME680 Details](https://cdn-shop.adafruit.com/product-files/3660/BME680.pdf) - Detailed specifications and usage information for the BME680 sensor.
 - [BH1750 Details](https://cdn-learn.adafruit.com/downloads/pdf/adafruit-bh1750-ambient-light-sensor.pdf) - Detailed specifications and usage information for the BH1750 sensor.
 - [TFT Display Graphics](https://cdn-learn.adafruit.com/downloads/pdf/adafruit-gfx-graphics-library.pdf)
+
