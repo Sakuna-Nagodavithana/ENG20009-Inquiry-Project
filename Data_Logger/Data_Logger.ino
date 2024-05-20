@@ -70,7 +70,7 @@ public:
     ms.Target(command);
 
     // Check Address
-    if (ms.Match(".*?!") == REGEXP_MATCHED) {
+    if (ms.Match("?!") == REGEXP_MATCHED) {
       writeToSDI12(String(address));
     } else if (command[0] - '0' != address) {
       writeToSDI12("The address that you provided is not the current address.You can find the current address by using this command (?!) ");
@@ -86,42 +86,49 @@ public:
 
     // Send Identification
     if (ms.Match("^[0-9A-Z]+I!") == REGEXP_MATCHED) {
-      writeToSDI12(String(address));
-      writeToSDI12("14");
-      writeToSDI12("ENG20009");
-      writeToSDI12("104643522");
+      String initilizationString = String(address) + String("14") + String("ENG20009") + String("104643522");
+      writeToSDI12(initilizationString);
     }
 
     // Start Measurement
     if (ms.Match("^[0-9A-Z]+M!") == REGEXP_MATCHED) {
+      int startTime;
       if (!initialize) {
+        startTime = millis();
         if (!bme.begin(0x76)) {
           writeToSDI12("Error in the BME sensor");
         } else if (!lightMeter.begin()) {
           writeToSDI12("Error in the BH1750 sensor");
         } else {
+          bme.setTemperatureOversampling(BME680_OS_8X);
+          bme.setHumidityOversampling(BME680_OS_2X);
+          bme.setPressureOversampling(BME680_OS_4X);
+          bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
+          bme.setGasHeater(320, 150);  // 320*C for 150 ms
+          String startMesurementString = String(address)+String((millis() - startTime)/1000)+String((millis() - startTime)/100) + String("6");
+          writeToSDI12(startMesurementString);
           initialize = true;
-          writeToSDI12("Measurement Started");
         }
+
+
 
       } else {
         writeToSDI12("You already initialized it");
       }
-
-      bme.setTemperatureOversampling(BME680_OS_8X);
-      bme.setHumidityOversampling(BME680_OS_2X);
-      bme.setPressureOversampling(BME680_OS_4X);
-      bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
-      bme.setGasHeater(320, 150);  // 320*C for 150 ms
     }
 
     // Send Data
     if (ms.Match("^[0-9]+D[0-9]!") == REGEXP_MATCHED) {
       int commandAddress = command[0] - '0';
       int sensorID = command[2] - '0';
+      String value;
       getData();
       if (commandAddress == address && initialize) {
-        String value = String(address) + String(" ") + String(dataValue[sensorID]);
+        if (sensorID == 0) {
+          value = String(address) + String("+") + String(dataValue[0]) + String("+") + String(dataValue[1]) + String("+") + String(dataValue[2]) + String("+") + String(dataValue[3]) + String("+") + String(dataValue[4]);
+        } else if (sensorID == 1) {
+          value = String(address) + String("+") + String(dataValue[5]);
+        }
         writeToSDI12(value);
       }
     }
@@ -171,18 +178,13 @@ public:
   void handleMeasurement() {
     getData();
     String value;
-    for (int i = 0; i < 6; i++) {
-      if (i != 5) {
-        value = value + String(dataValue[i]) + String("+");
-      } else {
-        value = value + String(dataValue[i]);
-      }
-    }
+    if (continusMesurmentSensorID == 0) {
+      value = String(address) + String("+") + String(dataValue[0]) + String("+") + String(dataValue[1]) + String("+") + String(dataValue[2]) + String("+") + String(dataValue[3]) + String("+") + String(dataValue[4])+ String("+") + String(dataValue[5]);
+    } 
     writeToSDI12(value);
     Serial.println("Measurement taken and sent.");
   }
 };
-
 
 
 class LCD_Display {
@@ -623,8 +625,8 @@ private:
   static constexpr uint8_t SOFT_SCK_PIN = 13;
 
   const int LEDPINS[6] = { 48, 49, 50, 51, 52, 53 };
-  #define WDT_KEY (0xA5)
-  #define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SD_SCK_MHZ(0), &softSpi)
+#define WDT_KEY (0xA5)
+#define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SD_SCK_MHZ(0), &softSpi)
   SoftSpiDriver<SOFT_MISO_PIN, SOFT_MOSI_PIN, SOFT_SCK_PIN> softSpi;
 
   SdFs sd;
@@ -766,8 +768,8 @@ public:
 
     //Serial.println("Enter the main loop : Restart watchdog");
     GPBR->SYS_GPBR[0] += 1;
-    //Serial.print("GPBR = ");
-    //Serial.println(GPBR->SYS_GPBR[0]);
+    Serial.print("GPBR = ");
+    Serial.println(GPBR->SYS_GPBR[0]);
   }
 
 
